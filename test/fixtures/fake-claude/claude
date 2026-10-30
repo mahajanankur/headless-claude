@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Fake `claude` for integration tests. Emits real stream-json shapes (see test/fixtures/claude/).
+ * The scenario comes from ./input.json `scenario` (the gateway passes input that way), so tests
+ * never spend real Claude usage. It records its argv in ./fake-argv.json.
+ */
+const fs = require('fs');
+const crypto = require('crypto');
+
+const argv = process.argv.slice(2);
+if (argv[0] === '--version') {
+    process.stdout.write('2.1.312 (Claude Code)\n');
+    process.exit(0);
+}
+const flag = (name) => (argv.indexOf(name) >= 0 ? argv[argv.indexOf(name) + 1] : null);
+const input = fs.existsSync('input.json') ? JSON.parse(fs.readFileSync('input.json', 'utf8')) : {};
+const scenario = input.scenario || (input.message ? 'chat' : 'success');
+const sessionId = flag('--resume') || flag('--session-id') || crypto.randomUUID();
+const runs = fs.existsSync('fake-argv.json') ? JSON.parse(fs.readFileSync('fake-argv.json', 'utf8')) : [];
+runs.push({ argv, env: { HOME: process.env.HOME, token: Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN), apiKey: Boolean(process.env.ANTHROPIC_API_KEY), PATH: process.env.PATH } });
+fs.writeFileSync('fake-argv.json', JSON.stringify(runs));
+
+const emit = (o) => process.stdout.write(`${JSON.stringify({ ...o, session_id: sessionId, uuid: crypto.randomUUID() })}\n`);
+const usage = (n = 100) => ({ input_tokens: n, output_tokens: n, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
+const assistant = (content, n = 100, id = crypto.randomUUID()) => emit({ type: 'assistant', message: { id, model: 'claude-haiku-5-5', content, usage: usage(n) } });
+const rateLimit = (status = 'allowed', utilization = 0.1) =>
+    emit({ type: 'rate_limit_event', rate_limit_info: { status, resetsAt: Math.floor(Date.now() / 1000) + 3600, rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization, resetsAt: Math.floor(Date.now() / 1000) + 3600, status }, seven_day: { utilization: 0.05, resetsAt: Math.floor(Date.now() / 1000) + 86400, status: 'allowed' } } } });
+const result = (extra) =>
+    emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 2, terminal_reason: 'completed', result: 'done', usage: usage(), modelUsage: {}, permission_denials: [], total_cost_usd: 0.001, ...extra });
+const structured = () => (flag('--json-schema') ? { structured_output: { summary: 'ok', findings: [] } } : {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+let interrupted = false;
+process.on('SIGINT', () => {
+    interrupted = true;
+    emit({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, terminal_reason: 'aborted_tools', usage: usage(10) });
+    process.exit(0);
+});
+
+const scenarios = {
+    chat: async () => {
+        const turn = runs.length;
+        assistant([{ type: 'text', text: 'Thinking.' }]);
+        result({ result: `Reply ${turn} to: ${input.message}` });
+    },
+    success: async () => {
+        assistant([{ type: 'text', text: 'Working on it.' }]);
+        rateLimit('allowed', 0.2);
+        result(structured());
+    },
+    write_out: async () => {
+        assistant([{ type: 'tool_use', id: 't1', name: 'Write', input: { file_path: './out/report.md' } }]);
+        fs.mkdirSync('out', { recursive: true });
+        fs.writeFileSync('out/report.md', '# Report\nAll good.\n');
+        emit({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } });
+        result(structured());
+    },
+    edit_repo: async () => {
+        if (!fs.existsSync('repo-files.txt') || !fs.readFileSync('repo-files.txt', 'utf8').includes('README.md')) {
+            process.stderr.write('repo-files.txt missing');
+            process.exit(3);
+        }
+        assistant([{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: './repo/README.md' } }]);
+        fs.appendFileSync('repo/README.md', '\nEdited by the fake agent.\n');
+        result(structured());
+    },
+    bash_then_crash: async () => {
+        assistant([{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo hi' } }]);
+        process.exit(1);
+    },
+    crash: async () => process.exit(1),
+    limit: async () => {
+        rateLimit('rejected', 1);
+        emit({ type: 'result', subtype: 'success', is_error: true, num_turns: 1, terminal_reason: 'api_error', api_error_status: 429, result: "You've hit your session limit · resets 3pm", usage: usage(1) });
+        process.exit(1);
+    },
+    auth: async () => {
+        emit({ type: 'result', subtype: 'success', is_error: true, num_turns: 1, terminal_reason: 'api_error', api_error_status: 401, result: 'Failed to authenticate. API Error: 401 Invalid bearer token', usage: usage(0) });
+        process.exit(1);
+    },
+    no_output: async () => result({}),
+    hang: async () => {
+        assistant([{ type: 'text', text: 'Thinking for a long time.' }]);
+        while (!interrupted) await sleep(100);
+    },
+    slow: async () => {
+        for (let i = 0; i < 20; i += 1) {
+            assistant([{ type: 'text', text: `step ${i}` }], 10, `m${i}`);
+            await sleep(150);
+        }
+        result(structured());
+    },
+    expensive: async () => {
+        for (let i = 0; i < 50; i += 1) {
+            assistant([{ type: 'text', text: `step ${i}` }], 5000, `m${i}`);
+            await sleep(100);
+        }
+        result(structured());
+    },
+};
+
+emit({ type: 'system', subtype: 'init', model: flag('--model') || 'claude-haiku-5-5', claude_code_version: '2.1.312', cwd: process.cwd() });
+scenarios[scenario]().catch((e) => {
+    process.stderr.write(String(e.stack));
+    process.exit(2);
+});

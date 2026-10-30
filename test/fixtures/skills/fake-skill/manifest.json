@@ -1,0 +1,33 @@
+{
+    "name": "fake-skill",
+    "version": "1.0.0",
+    "description": "Integration-test skill driven by the fake claude binary.",
+    "timeoutSec": 60,
+    "maxTurns": 5,
+    "defaultModel": "haiku",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "scenario": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "summary"
+        ],
+        "properties": {
+            "summary": {
+                "type": "string"
+            },
+            "findings": {
+                "type": "array"
+            }
+        }
+    },
+    "prompt": "Read ./input.json.",
+    "edits": true
+}

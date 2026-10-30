@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11111b"/>
+      <stop offset="1" stop-color="#1e1e2e"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cba6f7"/>
+      <stop offset="0.55" stop-color="#89b4fa"/>
+      <stop offset="1" stop-color="#94e2d5"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.45" r="0.45">
+      <stop offset="0" stop-color="#cba6f7" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#cba6f7" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#313244"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="420" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="420" rx="24" fill="url(#dots)" opacity="0.6"/>
+  <rect width="1280" height="420" rx="24" fill="url(#glow)"/>
+
+  <!-- left: name and tagline -->
+  <g transform="translate(72,0)">
+    <text x="0" y="118" font-size="20" font-weight="600" fill="#a6adc8" letter-spacing="4">CLAUDE CODE · AS A SERVICE</text>
+    <text x="0" y="196" font-size="78" font-weight="800" fill="url(#title)" letter-spacing="-1.5">headless-claude</text>
+    <text x="0" y="246" font-size="25" fill="#cdd6f4">Run Claude Code skills as sandboxed background jobs</text>
+    <text x="0" y="280" font-size="25" fill="#cdd6f4">and chat, behind one API, for your backend services.</text>
+
+    <g font-size="16" font-weight="600">
+      <rect x="0" y="318" width="132" height="36" rx="18" fill="#313244"/>
+      <text x="66" y="341" text-anchor="middle" fill="#a6e3a1">● sandboxed</text>
+      <rect x="146" y="318" width="146" height="36" rx="18" fill="#313244"/>
+      <text x="219" y="341" text-anchor="middle" fill="#89b4fa">● safe retries</text>
+      <rect x="306" y="318" width="132" height="36" rx="18" fill="#313244"/>
+      <text x="372" y="341" text-anchor="middle" fill="#f9e2af">● plan-aware</text>
+      <rect x="452" y="318" width="118" height="36" rx="18" fill="#313244"/>
+      <text x="511" y="341" text-anchor="middle" fill="#f5c2e7">● no Redis</text>
+    </g>
+  </g>
+
+  <!-- right: terminal card -->
+  <g transform="translate(790,70)">
+    <rect x="8" y="10" width="420" height="280" rx="16" fill="#000" opacity="0.35"/>
+    <rect width="420" height="280" rx="16" fill="#181825" stroke="#45475a"/>
+    <circle cx="26" cy="24" r="7" fill="#f38ba8"/>
+    <circle cx="48" cy="24" r="7" fill="#f9e2af"/>
+    <circle cx="70" cy="24" r="7" fill="#a6e3a1"/>
+    <line x1="0" y1="46" x2="420" y2="46" stroke="#313244"/>
+    <g font-family="'SF Mono', Menlo, Consolas, monospace" font-size="15">
+      <text x="22" y="80" fill="#94e2d5">$ <tspan fill="#cdd6f4">curl -X POST /api/v1/jobs</tspan></text>
+      <text x="40" y="104" fill="#a6adc8">-d '{"skill":"repo-review",</text>
+      <text x="40" y="128" fill="#a6adc8">     "input":{"repoUrl":"…"}}'</text>
+      <text x="22" y="164" fill="#6c7086">queued → running → <tspan fill="#a6e3a1">succeeded</tspan></text>
+      <text x="22" y="200" fill="#cdd6f4">{ <tspan fill="#89b4fa">"summary"</tspan>: <tspan fill="#a6e3a1">"…"</tspan>,</text>
+      <text x="22" y="224" fill="#cdd6f4">  <tspan fill="#89b4fa">"findings"</tspan>: [</text>
+      <text x="40" y="248" fill="#f38ba8">[high] <tspan fill="#cdd6f4">src/auth.js:42 …</tspan></text>
+    </g>
+  </g>
+</svg>

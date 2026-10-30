@@ -1,0 +1,111 @@
+{
+    "server": {
+        "port": {
+            "__name": "PORT",
+            "__format": "number"
+        },
+        "corsOrigins": {
+            "__name": "CORS_ORIGINS",
+            "__format": "json"
+        },
+        "trustProxy": {
+            "__name": "TRUST_PROXY",
+            "__format": "boolean"
+        }
+    },
+    "postgres": {
+        "url": "DATABASE_URL",
+        "logging": {
+            "__name": "DB_LOGGING",
+            "__format": "boolean"
+        },
+        "poolMax": {
+            "__name": "DB_POOL_MAX",
+            "__format": "number"
+        }
+    },
+    "llm": {
+        "claudeBin": "CLAUDE_BIN",
+        "pinnedVersion": "CLAUDE_PINNED_VERSION",
+        "allowedModels": {
+            "__name": "ALLOWED_MODELS",
+            "__format": "json"
+        }
+    },
+    "runner": {
+        "mode": "WORKER_RUNTIME",
+        "sandbox": "SANDBOX_MODE",
+        "dockerImage": "RUNNER_DOCKER_IMAGE",
+        "dockerNetwork": "RUNNER_DOCKER_NETWORK",
+        "egressProxy": "RUNNER_EGRESS_PROXY",
+        "dockerUser": "RUNNER_DOCKER_USER",
+        "memoryMax": "JOB_MEMORY_MAX",
+        "cpus": "JOB_CPUS"
+    },
+    "worker": {
+        "hostId": "GW_HOST_ID",
+        "concurrency": {
+            "__name": "WORKER_CONCURRENCY",
+            "__format": "number"
+        },
+        "longJobSlots": {
+            "__name": "LONG_JOB_SLOTS",
+            "__format": "number"
+        }
+    },
+    "usage": {
+        "longJobMaxUtilization": {
+            "__name": "USAGE_LONG_JOB_MAX",
+            "__format": "number"
+        },
+        "quickJobMaxUtilization": {
+            "__name": "USAGE_QUICK_JOB_MAX",
+            "__format": "number"
+        }
+    },
+    "paths": {
+        "dataDir": "GW_DATA_DIR",
+        "skillsDir": "GW_SKILLS_DIR",
+        "secretsFile": "GW_SECRETS_FILE"
+    },
+    "logging": {
+        "level": "LOG_LEVEL"
+    },
+    "webhook": {
+        "allowPrivateHosts": {
+            "__name": "WEBHOOK_ALLOW_PRIVATE_HOSTS",
+            "__format": "boolean"
+        }
+    },
+    "secrets": {
+        "claudeOauthToken": "CLAUDE_CODE_OAUTH_TOKEN",
+        "anthropicApiKey": "ANTHROPIC_API_KEY",
+        "streamTokenSecret": "STREAM_TOKEN_SECRET",
+        "encryptionKey": "GW_ENCRYPTION_KEY",
+        "langfusePublicKey": "LANGFUSE_PUBLIC_KEY",
+        "langfuseSecretKey": "LANGFUSE_SECRET_KEY"
+    },
+    "git": {
+        "allowedHosts": {
+            "__name": "GIT_ALLOWED_HOSTS",
+            "__format": "json"
+        }
+    },
+    "scheduler": {
+        "reaperEnabled": {
+            "__name": "REAPER_ENABLED",
+            "__format": "boolean"
+        },
+        "retentionEnabled": {
+            "__name": "RETENTION_ENABLED",
+            "__format": "boolean"
+        }
+    },
+    "langfuse": {
+        "enabled": {
+            "__name": "LANGFUSE_ENABLED",
+            "__format": "boolean"
+        },
+        "baseUrl": "LANGFUSE_BASE_URL"
+    }
+}

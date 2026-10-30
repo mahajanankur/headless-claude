@@ -1,0 +1,42 @@
+{
+    "name": "fake-repo-skill",
+    "version": "1.0.0",
+    "description": "Integration-test skill that edits a cloned repository.",
+    "timeoutSec": 60,
+    "maxTurns": 5,
+    "defaultModel": "haiku",
+    "inputSchema": {
+        "type": "object",
+        "required": [
+            "repoUrl"
+        ],
+        "properties": {
+            "repoUrl": {
+                "type": "string"
+            },
+            "ref": {
+                "type": "string"
+            },
+            "scenario": {
+                "type": "string"
+            }
+        }
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "summary"
+        ],
+        "properties": {
+            "summary": {
+                "type": "string"
+            }
+        }
+    },
+    "prompt": "Do the test task.",
+    "repo": {
+        "urlFromInput": "repoUrl",
+        "refFromInput": "ref"
+    },
+    "changes": "branch"
+}

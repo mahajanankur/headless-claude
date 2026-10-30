@@ -1,0 +1,17 @@
+[Unit]
+Description=headless-claude worker
+After=network-online.target postgresql.service
+
+[Service]
+User=gateway
+WorkingDirectory=/opt/gateway
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/gateway/gateway.env
+ExecStart=/usr/bin/node src/worker/index.js
+Restart=on-failure
+# Jobs run in their own transient units, so restarting the worker never kills them (decision D2).
+KillMode=process
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

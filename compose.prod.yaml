@@ -1,0 +1,67 @@
+# Production-style stack on one host (Docker runner). See docs/deployment.md.
+#   docker build -f Dockerfile.runner -t headless-claude-runner .
+#   docker compose -f compose.prod.yaml up -d
+#
+# The worker starts sibling containers through the host Docker socket, so it is effectively root on the
+# host. Run it on a host dedicated to the gateway, or use the host runner (systemd) instead.
+# GW_DATA_DIR must be the same path inside and outside the worker container (bind-mount sources).
+x-gateway: &gateway
+  image: headless-claude
+  build: .
+  restart: unless-stopped
+  env_file: .env.production
+  environment:
+    NODE_ENV: production
+    GW_DATA_DIR: /var/gw
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cc_gateway
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: cc_gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cc_gateway']
+      interval: 5s
+      retries: 20
+
+  migrate:
+    <<: *gateway
+    restart: 'no'
+    command: ['node_modules/.bin/sequelize-cli', 'db:migrate']
+
+  api:
+    <<: *gateway
+    command: ['node', 'src/api/server.js']
+    ports:
+      - '127.0.0.1:4100:4100'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *gateway
+    command: ['node', 'src/worker/index.js']
+    user: root
+    stop_grace_period: 30s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/gw:/var/gw
+    environment:
+      NODE_ENV: production
+      GW_DATA_DIR: /var/gw
+      WORKER_RUNTIME: docker
+      RUNNER_DOCKER_USER: '1000:1000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

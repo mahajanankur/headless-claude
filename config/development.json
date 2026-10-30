@@ -1,0 +1,11 @@
+{
+    "scheduler": {
+        "reaperEnabled": true
+    },
+    "logging": {
+        "level": "debug"
+    },
+    "git": {
+        "allowFileUrls": true
+    }
+}

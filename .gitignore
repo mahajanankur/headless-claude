@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# local runtime data (workspaces, Claude homes, artifacts)
+var/
+
+# local secrets — see .env.example
+.env
+.env.local
+.env.production
+.secrets.local.json
+.gateway-keys.local
+
+# personal Claude Code settings and skills (project rules and skills in .claude/ are committed)
+.claude/settings.json
+.claude/settings.local.json
+.claude/skills/brainstorming
+.claude/skills/grill-me
+.claude/skills/status
+
+# tooling
+coverage/
+*.log
+.DS_Store

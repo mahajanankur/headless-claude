@@ -1,0 +1,53 @@
+{
+    "runner": {
+        "mode": "local",
+        "sandbox": "off",
+        "killGraceSec": 1
+    },
+    "worker": {
+        "pollMs": 200,
+        "leaseSec": 5,
+        "heartbeatSec": 1,
+        "tailIntervalMs": 100,
+        "reattachGraceSec": 1,
+        "healthIntervalSec": 3600,
+        "webhookIntervalSec": 1,
+        "concurrency": 2
+    },
+    "logging": {
+        "level": "error"
+    },
+    "paths": {
+        "dataDir": "var/test",
+        "skillsDir": "test/fixtures/skills",
+        "secretsFile": "var/test/secrets.json"
+    },
+    "secrets": {
+        "streamTokenSecret": "test-stream-secret-0123456789abcdef",
+        "encryptionKey": "0000000000000000000000000000000000000000000000000000000000000000",
+        "claudeOauthToken": "fake-oauth-token-for-tests"
+    },
+    "webhook": {
+        "allowPrivateHosts": true
+    },
+    "job": {
+        "retryBaseDelaySec": 0,
+        "cancelGraceSec": 1,
+        "minTimeoutSec": 1
+    },
+    "git": {
+        "allowFileUrls": true
+    },
+    "llm": {
+        "claudeBin": "test/fixtures/fake-claude/claude",
+        "allowedModels": ["haiku", "sonnet", "opus"]
+    },
+    "scheduler": {
+        "reaperEnabled": false,
+        "retentionEnabled": false
+    },
+    "rateLimit": {
+        "perKey": 100000,
+        "perIp": 100000
+    }
+}

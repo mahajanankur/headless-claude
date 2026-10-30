@@ -1,0 +1,75 @@
+{
+    "name": "repo-review",
+    "version": "1.2.0",
+    "description": "Review a repository (or part of it) for bugs, security and performance issues. Read-only.",
+    "class": "quick",
+    "defaultModel": "sonnet",
+    "estimatedSec": 300,
+    "timeoutSec": 900,
+    "maxTurns": 40,
+    "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repoUrl"],
+        "properties": {
+            "repoUrl": {
+                "type": "string",
+                "minLength": 1
+            },
+            "ref": {
+                "type": "string"
+            },
+            "paths": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "maxItems": 50
+            },
+            "focus": {
+                "type": "string",
+                "enum": ["general", "security", "performance", "correctness"]
+            }
+        }
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings"],
+        "properties": {
+            "summary": {
+                "type": "string"
+            },
+            "findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["file", "severity", "issue"],
+                    "properties": {
+                        "file": {
+                            "type": "string"
+                        },
+                        "line": {
+                            "type": "integer"
+                        },
+                        "severity": {
+                            "enum": ["critical", "high", "medium", "low", "info"]
+                        },
+                        "issue": {
+                            "type": "string"
+                        },
+                        "suggestion": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "prompt": "Review the repository checked out at ./repo. The review request (paths, focus) is in ./input.json.",
+    "repo": {
+        "urlFromInput": "repoUrl",
+        "refFromInput": "ref"
+    },
+    "changes": "none",
+    "rerunSafe": true
+}

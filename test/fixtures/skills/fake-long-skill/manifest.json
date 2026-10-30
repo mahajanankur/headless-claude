@@ -1,0 +1,14 @@
+{
+    "name": "fake-long-skill",
+    "version": "1.0.0",
+    "description": "Integration-test long skill.",
+    "class": "long",
+    "timeoutSec": 60,
+    "maxTurns": 5,
+    "defaultModel": "haiku",
+    "inputSchema": {
+        "type": "object"
+    },
+    "prompt": "Do the test task.",
+    "rerunSafe": true
+}

@@ -1,0 +1,20 @@
+# Local development database. `docker compose up -d` then `npm run db:migrate`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cc_gateway
+      POSTGRES_PASSWORD: cc_gateway
+      POSTGRES_DB: cc_gateway
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./ops/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cc_gateway']
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:

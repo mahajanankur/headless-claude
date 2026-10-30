@@ -1,0 +1,75 @@
+{
+    "name": "headless-claude",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Run reusable Claude Code skills as managed, sandboxed background jobs for your backend services.",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mahajanankur/headless-claude.git"
+    },
+    "homepage": "https://github.com/mahajanankur/headless-claude#readme",
+    "bugs": {
+        "url": "https://github.com/mahajanankur/headless-claude/issues"
+    },
+    "keywords": [
+        "claude",
+        "claude-code",
+        "anthropic",
+        "ai-agents",
+        "job-queue",
+        "postgres",
+        "sandbox"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "db:migrate": "sequelize-cli db:migrate",
+        "db:migrate:undo": "sequelize-cli db:migrate:undo",
+        "db:migrate:test": "NODE_ENV=test sequelize-cli db:migrate",
+        "skills:sync": "node scripts/sync-skills.js",
+        "test": "jest --selectProjects unit",
+        "test:integration": "NODE_ENV=test jest --selectProjects integration --runInBand",
+        "test:all": "NODE_ENV=test jest --runInBand",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "check": "npm run format:check && npm run lint && npm run test:all",
+        "app:create": "node scripts/create-app.js",
+        "start:api": "node src/api/server.js",
+        "start:worker": "node src/worker/index.js",
+        "secrets:init": "node scripts/secrets.js init",
+        "secrets:set": "node scripts/secrets.js set",
+        "docs:config": "node scripts/gen-config-docs.js",
+        "setup": "node scripts/setup.js",
+        "dev": "node scripts/dev.js"
+    },
+    "dependencies": {
+        "ajv": "^8.20.0",
+        "ajv-formats": "^3.0.1",
+        "config": "^3.3.12",
+        "cors": "^2.8.6",
+        "dotenv": "^18.0.9",
+        "express": "^5.3.0",
+        "express-validator": "^7.3.2",
+        "helmet": "^8.3.0",
+        "jsonwebtoken": "^9.0.3",
+        "langfuse": "^3.39.2",
+        "motifer": "^26.1.1",
+        "pg": "^8.23.1",
+        "sequelize": "^6.37.8",
+        "sequelize-cli": "^6.6.5",
+        "socket.io": "^4.8.4"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "eslint": "^10.13.0",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.13.0",
+        "jest": "^30.5.2",
+        "prettier": "^3.9.10",
+        "socket.io-client": "^4.8.4",
+        "supertest": "^7.3.1"
+    }
+}

@@ -1,0 +1,151 @@
+{
+    "server": {
+        "port": 4100,
+        "bodyLimit": "512kb",
+        "corsOrigins": [],
+        "shutdownGraceSec": 15,
+        "trustProxy": false
+    },
+    "postgres": {
+        "url": "",
+        "logging": false,
+        "poolMax": 10,
+        "statementTimeoutMs": 15000
+    },
+    "auth": {
+        "apiKeyPrefix": "gwk",
+        "streamTokenTtlSec": 600,
+        "streamMaxConnectionSec": 7200,
+        "streamTokenIssuer": "headless-claude"
+    },
+    "rateLimit": {
+        "windowSec": 60,
+        "perKey": 120,
+        "perIp": 300
+    },
+    "pagination": {
+        "defaultLimit": 50,
+        "maxLimit": 200
+    },
+    "job": {
+        "maxInputBytes": 262144,
+        "waitMaxSec": 55,
+        "minTimeoutSec": 30,
+        "maxTimeoutSec": 86400,
+        "maxStreamLineBytes": 1048576,
+        "maxOutputBytes": 52428800,
+        "maxArtifactBytes": 20971520,
+        "eventSummaryMaxChars": 1000,
+        "maxAutoRetries": 2,
+        "retryBaseDelaySec": 15,
+        "maxEventsPerPage": 500,
+        "retryMaxDelaySec": 900,
+        "cancelGraceSec": 10,
+        "maxPatchBytes": 5242880
+    },
+    "llm": {
+        "allowedModels": ["haiku", "sonnet", "opus"],
+        "defaultModel": "sonnet",
+        "claudeBin": "claude",
+        "pinnedVersion": null,
+        "settingSources": "user",
+        "permissionMode": "dontAsk",
+        "editPermissionMode": "acceptEdits",
+        "alwaysDisallowedTools": ["AskUserQuestion"]
+    },
+    "runner": {
+        "mode": "docker",
+        "sandbox": "required",
+        "dockerImage": "headless-claude-runner:latest",
+        "memoryMax": "2g",
+        "cpus": "1",
+        "pidsLimit": 256,
+        "runAsUser": "ccrunner",
+        "hostHelper": "/usr/local/sbin/gw-runner-helper",
+        "killGraceSec": 10,
+        "dockerUser": "",
+        "dockerNetwork": "bridge",
+        "egressProxy": "",
+        "tmpfsSize": "256m",
+        "ccwrapPath": "src/worker/runners/wrapper/ccwrap.js",
+        "containerCcwrapPath": "/opt/gateway/ccwrap.js",
+        "containerClaudeBin": "claude",
+        "containerNodeBin": "node"
+    },
+    "worker": {
+        "hostId": "",
+        "concurrency": 2,
+        "longJobSlots": 1,
+        "pollMs": 2000,
+        "claimBatch": 20,
+        "leaseSec": 60,
+        "heartbeatSec": 20,
+        "reattachGraceSec": 5,
+        "tailIntervalMs": 500,
+        "eventBatchSize": 200,
+        "healthIntervalSec": 300,
+        "webhookIntervalSec": 5
+    },
+    "usage": {
+        "cacheReadWeight": 0.1,
+        "longJobMaxUtilization": 0.7,
+        "quickJobMaxUtilization": 0.9,
+        "softCapRatio": 0.8
+    },
+    "stream": {
+        "heartbeatSec": 15
+    },
+    "scheduler": {
+        "reaperEnabled": false,
+        "reaperIntervalSec": 30,
+        "retentionEnabled": false,
+        "eventsRetentionDays": 30,
+        "jobsRetentionDays": 90,
+        "failedWorkspaceRetentionDays": 7
+    },
+    "paths": {
+        "dataDir": "var",
+        "skillsDir": "skills",
+        "secretsFile": ".secrets.local.json"
+    },
+    "logging": {
+        "level": "info"
+    },
+    "webhook": {
+        "timeoutMs": 5000,
+        "maxAttempts": 12,
+        "maxAgeHours": 24,
+        "allowPrivateHosts": false,
+        "batchSize": 20
+    },
+    "git": {
+        "bin": "git",
+        "cloneDepth": 1,
+        "timeoutSec": 300,
+        "githubApiUrl": "https://api.github.com",
+        "allowedHosts": ["github.com", "gitlab.com", "bitbucket.org"],
+        "allowFileUrls": false,
+        "authorName": "headless-claude",
+        "authorEmail": "gateway@localhost"
+    },
+    "sessions": {
+        "defaultTtlHours": 24,
+        "maxTtlHours": 720
+    },
+    "secrets": {
+        "claudeOauthToken": "",
+        "anthropicApiKey": "",
+        "streamTokenSecret": "",
+        "encryptionKey": "",
+        "langfusePublicKey": "",
+        "langfuseSecretKey": ""
+    },
+    "langfuse": {
+        "enabled": false,
+        "baseUrl": "https://cloud.langfuse.com",
+        "flushAt": 20,
+        "flushIntervalMs": 5000,
+        "requestTimeoutMs": 10000,
+        "maxGenerations": 500
+    }
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=headless-claude API
+After=network-online.target postgresql.service
+
+[Service]
+User=gateway
+WorkingDirectory=/opt/gateway
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/gateway/gateway.env
+ExecStart=/usr/bin/node src/api/server.js
+Restart=on-failure
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

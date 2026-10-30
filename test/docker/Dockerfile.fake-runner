@@ -1,0 +1,4 @@
+# Runner image + the fake claude, for testing the docker runner without real Claude usage.
+#   docker build -f test/docker/Dockerfile.fake-runner -t headless-claude-runner:fake test/fixtures/fake-claude
+FROM headless-claude-runner:latest
+COPY claude /opt/gateway/fake-claude

@@ -1,0 +1,2 @@
+# The gateway worker (user "gateway") may only run the validated helper as root.
+gateway ALL=(root) NOPASSWD: /usr/local/sbin/gw-runner-helper

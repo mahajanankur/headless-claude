@@ -1,0 +1,15 @@
+node_modules
+var
+.env
+.env.local
+.secrets*.json
+.claude
+coverage
+test
+docs
+*.md
+.github
+config/test.json
+config/development.json
+.gateway-keys.local
+.env.production

@@ -1,0 +1,18 @@
+{
+    "runner": {
+        "mode": "docker",
+        "sandbox": "required"
+    },
+    "paths": {
+        "dataDir": "/var/gw",
+        "skillsDir": "/opt/gateway/skills",
+        "secretsFile": "/etc/gateway/secrets.json"
+    },
+    "scheduler": {
+        "reaperEnabled": true,
+        "retentionEnabled": true
+    },
+    "server": {
+        "trustProxy": true
+    }
+}

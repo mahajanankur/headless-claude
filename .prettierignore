@@ -1,0 +1,5 @@
+node_modules
+var
+test/fixtures
+package-lock.json
+*.md

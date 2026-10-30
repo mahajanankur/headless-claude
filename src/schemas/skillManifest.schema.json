@@ -1,0 +1,171 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Gateway skill manifest",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["name", "version", "description", "prompt", "inputSchema"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+        },
+        "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+        },
+        "class": {
+            "enum": ["quick", "long"],
+            "default": "quick"
+        },
+        "defaultModel": {
+            "type": "string",
+            "default": "sonnet"
+        },
+        "estimatedSec": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "timeoutSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 86400,
+            "default": 900
+        },
+        "maxTurns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 40
+        },
+        "runWindows": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["tz", "from", "to"],
+                "additionalProperties": false,
+                "properties": {
+                    "tz": {
+                        "type": "string"
+                    },
+                    "from": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                    },
+                    "to": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                    }
+                }
+            }
+        },
+        "credentialProfile": {
+            "enum": ["max-subscription", "api-key"],
+            "default": "max-subscription"
+        },
+        "inputSchema": {
+            "type": "object"
+        },
+        "outputSchema": {
+            "type": "object"
+        },
+        "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+        },
+        "appendSystemPrompt": {
+            "type": "string",
+            "maxLength": 8000
+        },
+        "allowedTools": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": [],
+            "description": "Extra tools to pre-approve. Never bare file tools (Read, Write, ...): file access is limited to the workspace by default (rules N13)."
+        },
+        "disallowedTools": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "env": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "pattern": "^secret:[A-Za-z0-9_.-]+$"
+            },
+            "default": {}
+        },
+        "uses": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "mcpServers": {
+            "type": "object",
+            "default": {}
+        },
+        "network": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "allowedHosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                }
+            },
+            "default": {}
+        },
+        "repo": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+                "urlFromInput": {
+                    "type": "string"
+                },
+                "refFromInput": {
+                    "type": "string"
+                },
+                "defaultRef": {
+                    "type": "string"
+                }
+            },
+            "required": ["urlFromInput"]
+        },
+        "changes": {
+            "enum": ["none", "patch", "branch", "pr"],
+            "default": "none"
+        },
+        "rerunSafe": {
+            "type": "boolean",
+            "default": false
+        },
+        "keepWorkspaceOnRetry": {
+            "type": "boolean",
+            "default": false
+        },
+        "logContent": {
+            "type": "boolean",
+            "default": false
+        },
+        "edits": {
+            "type": "boolean",
+            "default": false,
+            "description": "Claude may create and edit files inside its workspace (permission mode acceptEdits). Implied by changes != none."
+        }
+    }
+}

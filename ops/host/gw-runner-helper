@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Root-owned helper for the host runner (runner.mode = host). Install:
+#   install -o root -g root -m 0755 ops/host/gw-runner-helper /usr/local/sbin/gw-runner-helper
+#   install -o root -g root -m 0440 ops/host/sudoers.gateway /etc/sudoers.d/headless-claude
+#
+#   gw-runner-helper start <unit> <user> <memoryMax> <runtimeMaxSec> <workdir> <envFile> <attemptDir> -- <cmd...>
+#   gw-runner-helper stop <unit>
+#
+# Every argument is validated: units must be gw-<uuid>, the user must be the configured runner user,
+# and paths must live under GW_DATA_DIR (default /var/gw). Anything else is refused.
+set -euo pipefail
+
+DATA_DIR="${GW_DATA_DIR:-/var/gw}"
+RUN_AS="${GW_RUN_AS:-ccrunner}"
+UNIT_RE='^gw-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+die() { echo "gw-runner-helper: $*" >&2; exit 2; }
+under_data() { case "$(realpath -m "$1")" in "$DATA_DIR"/*) ;; *) die "path outside $DATA_DIR: $1" ;; esac; }
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  start)
+    [[ $# -ge 9 ]] || die "usage: start <unit> <user> <mem> <maxSec> <workdir> <envFile> <attemptDir> -- <cmd...>"
+    unit="$1" user="$2" mem="$3" maxsec="$4" workdir="$5" envfile="$6" attempt="$7"; shift 7
+    [[ "${1:-}" == "--" ]] || die "missing --"; shift
+    [[ "$unit" =~ $UNIT_RE ]] || die "bad unit name"
+    [[ "$user" == "$RUN_AS" ]] || die "user must be $RUN_AS"
+    [[ "$mem" =~ ^[0-9]+[KMGkmg]?$ ]] || die "bad memory limit"
+    [[ "$maxsec" =~ ^[0-9]+$ ]] || die "bad runtime limit"
+    under_data "$workdir"; under_data "$envfile"; under_data "$attempt"
+    chown -R "$user": "$workdir" "$attempt/run" "$attempt/control"
+    exec systemd-run --quiet --collect --unit="$unit" --uid="$user" --gid="$user" \
+      --working-directory="$workdir" \
+      -p EnvironmentFile="$envfile" -p MemoryMax="$mem" -p MemorySwapMax=0 -p RuntimeMaxSec="$maxsec" \
+      -p TasksMax=256 -p NoNewPrivileges=yes -p PrivateTmp=yes -p ProtectSystem=strict \
+      -p ReadWritePaths="$workdir $attempt/run $DATA_DIR/apps" \
+      -- "$@"
+    ;;
+  stop)
+    [[ "${1:-}" =~ $UNIT_RE ]] || die "bad unit name"
+    systemctl stop "$1.service" 2>/dev/null || true
+    ;;
+  *) die "unknown command '$cmd'" ;;
+esac
