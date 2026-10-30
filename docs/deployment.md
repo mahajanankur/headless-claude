@@ -57,6 +57,7 @@ docker compose -f compose.prod.yaml exec api node scripts/create-app.js --name o
 **Important:**
 - **The worker controls Docker through the host socket.** Anyone who controls the worker is effectively root on the host, so run it on a host dedicated to the gateway.
 - **`/var/gw` must be mounted at the same path** in the worker container and on the host. The worker passes these paths to `docker run`.
+- **Job containers run as `RUNNER_DOCKER_USER`** (`1000:1000` in `compose.prod.yaml`). The worker runs as root and gives that user each attempt's `run/`, workspace and app Claude home before starting the container (using `lchown`, which never follows symlinks). Without this, the container could not write its stream on Linux.
 - **The API listens on `127.0.0.1:4100`.** Put a TLS-terminating reverse proxy in front of it and keep `server.trustProxy: true` (set in production config).
 - **`CLAUDE_PINNED_VERSION` must match the version baked into the runner image.** The worker's health check flags a mismatch.
 

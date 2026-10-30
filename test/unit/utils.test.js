@@ -5,7 +5,13 @@ const os = require('os');
 const path = require('path');
 
 const { backoffSec } = require('../../src/utils/backoff');
-const { resolveInside, readFileInside, listRegularFiles, writeFileAtomic } = require('../../src/utils/safeFs');
+const {
+    resolveInside,
+    readFileInside,
+    listRegularFiles,
+    writeFileAtomic,
+    chownTree,
+} = require('../../src/utils/safeFs');
 const { encryptSecret, decryptSecret } = require('../../src/utils/encryption');
 const { isPrivateAddress, assertSafeOutboundUrl } = require('../../src/utils/netGuard');
 
@@ -50,6 +56,18 @@ describe('safeFs', () => {
         writeFileAtomic(f, '1');
         writeFileAtomic(f, '2');
         expect(fs.readFileSync(f, 'utf8')).toBe('2');
+    });
+
+    test('chownTree changes the whole tree without following symlinks', () => {
+        const spy = jest.spyOn(fs, 'lchownSync').mockImplementation(() => {});
+        try {
+            chownTree(root, 1000, 1000);
+            const touched = spy.mock.calls.map(([p]) => path.relative(root, p)).sort();
+            expect(touched).toEqual(['', 'out', 'out/a.txt', 'out/link.txt']);
+            expect(spy.mock.calls.every(([, uid, gid]) => uid === 1000 && gid === 1000)).toBe(true);
+        } finally {
+            spy.mockRestore();
+        }
     });
 });
 

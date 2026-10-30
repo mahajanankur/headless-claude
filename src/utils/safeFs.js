@@ -80,4 +80,18 @@ const writeFileAtomic = (file, content) => {
     fs.renameSync(tmp, file);
 };
 
-module.exports = { resolveInside, readFileInside, listRegularFiles, writeFileAtomic };
+/**
+ * Give a directory tree to another user. Uses lchown and never descends through symlinks, so a link planted in a
+ * cloned repository cannot redirect the change outside the tree.
+ * @param {string} root absolute path
+ * @param {number} uid
+ * @param {number} gid
+ * @returns {void}
+ */
+const chownTree = (root, uid, gid) => {
+    fs.lchownSync(root, uid, gid);
+    if (!fs.lstatSync(root).isDirectory()) return;
+    fs.readdirSync(root).forEach((name) => chownTree(path.join(root, name), uid, gid));
+};
+
+module.exports = { resolveInside, readFileInside, listRegularFiles, writeFileAtomic, chownTree };

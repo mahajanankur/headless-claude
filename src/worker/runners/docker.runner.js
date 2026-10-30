@@ -1,10 +1,13 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 
 const config = require('../../../config');
 
 const { run } = require('./base.runner');
+
+const { chownTree } = require('../../utils/safeFs');
 
 const IMAGE = config.get('runner.dockerImage');
 const NETWORK = config.get('runner.dockerNetwork');
@@ -22,6 +25,22 @@ const IN = Object.freeze({
 });
 
 const containerUser = () => CONFIGURED_USER || `${process.getuid()}:${process.getgid()}`;
+
+/**
+ * When the worker runs as root and the container runs as another numeric uid:gid, hand that user what it must
+ * write (run/, the workspace with any cloned repo, the app's Claude home) and the read-only mounts it must read
+ * (meta/, control/). Without this the container cannot write its stream or exit record on Linux hosts.
+ * @param {Object} dirs
+ * @returns {void}
+ */
+const grantContainerAccess = (dirs) => {
+    const match = /^(\d+):(\d+)$/.exec(CONFIGURED_USER);
+    if (!match || process.getuid() !== 0) return;
+    const [uid, gid] = [Number(match[1]), Number(match[2])];
+    if (uid === 0) return;
+    [dirs.runDir, dirs.wsDir, dirs.homeDir].forEach((dir) => chownTree(dir, uid, gid));
+    [dirs.metaDir, dirs.controlDir].forEach((dir) => fs.chownSync(dir, uid, gid));
+};
 
 /**
  * Paths inside the container.
@@ -102,6 +121,7 @@ const runArgs = ({ dirs, skills, envFile, args, wrapArgs, labels, name }) => [
  * @throws {Error} when docker refuses to start the container
  */
 const start = async (spec) => {
+    grantContainerAccess(spec.dirs);
     const { stdout, stderr, code } = await run('docker', runArgs(spec));
     if (code !== 0) throw new Error(`docker run failed: ${stderr.trim().slice(0, 300)}`);
     return { kind: 'docker', name: spec.name, containerId: stdout.trim() };
@@ -133,6 +153,7 @@ module.exports = {
     isAlive,
     destroy,
     runArgs,
+    grantContainerAccess,
     IN,
     path,
 };
