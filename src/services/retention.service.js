@@ -5,6 +5,8 @@ const config = require('../../config');
 const jobRepository = require('../repositories/job.repository');
 const jobEventRepository = require('../repositories/jobEvent.repository');
 const sessionRepository = require('../repositories/session.repository');
+const skillRepository = require('../repositories/skill.repository');
+const skillSyncRepository = require('../repositories/skillSync.repository');
 const { JOB_STATUS, TERMINAL_STATUSES } = require('../constants/jobStatus');
 
 const DAY_MS = 24 * 3600e3;
@@ -31,6 +33,11 @@ const applyRetention = async () => {
             limit: BATCH,
         },
     );
+    const jobsCutoff = daysAgo(config.get('scheduler.jobsRetentionDays'));
+    // skills an app deleted (their versions go with them); a live skill keeps every version (D52)
+    const deletedSkills = await skillRepository.findDeletedBeforeInternal(jobsCutoff, BATCH);
+    await skillRepository.destroyManyInternal(deletedSkills.map((s) => s.id));
+    await skillSyncRepository.deleteFinishedBeforeInternal(daysAgo(config.get('skills.syncRetentionDays')));
     const sessions = await sessionRepository.findExpiredInternal(new Date());
     await sessionRepository.destroyManyInternal(sessions.map((s) => s.id));
     return {

@@ -5,7 +5,7 @@ const { body, query } = require('express-validator');
 const config = require('../../../config');
 
 const { runValidation } = require('../middlewares/validate');
-const { onlyFields, uuidParam, SKILL_NAME } = require('./common.validator');
+const { onlyFields, uuidParam, SKILL_NAME, SKILL_VERSION } = require('./common.validator');
 const { JOB_STATUS } = require('../../constants/jobStatus');
 
 const MAX_PAGE = config.get('pagination.maxLimit');
@@ -14,6 +14,7 @@ const MIN_TIMEOUT = config.get('job.minTimeoutSec');
 const MAX_TIMEOUT = config.get('job.maxTimeoutSec');
 const SUBMIT_FIELDS = [
     'skill',
+    'skillVersion',
     'input',
     'model',
     'priority',
@@ -28,6 +29,11 @@ const SUBMIT_FIELDS = [
 const submitChains = [
     onlyFields(SUBMIT_FIELDS),
     body('skill').isString().matches(SKILL_NAME).withMessage('Skill (skill) must be a skill name like "repo-review".'),
+    body('skillVersion')
+        .optional()
+        .isString()
+        .matches(SKILL_VERSION)
+        .withMessage('Skill version (skillVersion) must be a version like "1.2.0".'),
     body('input').isObject().withMessage('Input (input) must be a JSON object.'),
     body('model')
         .optional()

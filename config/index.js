@@ -9,6 +9,8 @@
  * - NODE_ENV defaults to `development`, the only environment that targets localhost.
  *   Never add config/local.json: node-config loads it in every environment, production included.
  * - Development loads `.env.local` first; tests take only TEST_DATABASE_URL from it; production never reads it.
+ * - GW_HOME (default: the current directory) is the working folder: `.env.local` and relative data and
+ *   secrets paths resolve there, so an npm-installed gateway keeps its state where it is run.
  *
  * Usage: const config = require('<path>/config'); config.get('worker.concurrency');
  */
@@ -17,7 +19,10 @@ const path = require('path');
 
 const dotenv = require('dotenv');
 
-const ENV_FILE = path.resolve(__dirname, '..', '.env.local');
+const HOME_DIR = path.resolve(process.env.GW_HOME || process.cwd());
+// children (API, worker, migrations) started by the CLI resolve the same working folder
+process.env.GW_HOME = HOME_DIR;
+const ENV_FILE = path.join(HOME_DIR, '.env.local');
 
 const readEnvFile = () => (fs.existsSync(ENV_FILE) ? dotenv.parse(fs.readFileSync(ENV_FILE)) : {});
 

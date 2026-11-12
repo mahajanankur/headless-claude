@@ -6,6 +6,7 @@ const path = require('path');
 
 const manifestSchema = require('../schemas/skillManifest.schema.json');
 const { validateSchema, schemaError } = require('../utils/jsonSchema');
+const { isAllowedSkillEnvName } = require('../utils/envPolicy');
 const {
     SKILL_CLASS,
     CHANGE_MODE,
@@ -100,6 +101,9 @@ const checkManifest = (name, manifest, skillMdPath) => {
     if (forbidden.length) return `allowedTools must not contain ${forbidden.join(', ')}`;
     const bare = (manifest.allowedTools || []).filter((t) => BARE_FILE_TOOLS.includes(t));
     if (bare.length) return `allowedTools must not contain bare file tools (${bare.join(', ')})`;
+    const badEnv = Object.keys(manifest.env || {}).filter((n) => !isAllowedSkillEnvName(n));
+    if (badEnv.length)
+        return `env must not set ${badEnv.join(', ')} (uppercase names, not reserved by Claude or the system)`;
     for (const key of ['inputSchema', 'outputSchema']) {
         const compileError = manifest[key] && schemaError(manifest[key]);
         if (compileError) return `${key} is not a valid JSON schema: ${compileError}`;
@@ -118,27 +122,35 @@ const listFilesRecursive = (dir, base = dir) =>
             return entry.isFile() ? [path.relative(base, full)] : [];
         });
 
+/** Files a skill package carries (skillPackage.pack): manifest.json and everything under .claude/. */
+const isPackagedFile = (rel) => {
+    const posix = rel.split(path.sep).join('/');
+    return posix === 'manifest.json' || posix.startsWith('.claude/');
+};
+
 /**
- * Content checksum over every regular file in the skill folder (path and content, length-prefixed
- * so file boundaries are unambiguous). Any change to a script or reference changes the checksum.
+ * Content checksum over the files a skill package carries (path and content, length-prefixed so file
+ * boundaries are unambiguous). Any change to a script or reference changes it; other files in the folder
+ * (a README, .DS_Store) are not packaged and do not count.
+ * Reads asynchronously so an upload never blocks the API's event loop.
  * @param {string} dir
- * @returns {string}
+ * @returns {Promise<string>}
  */
-const checksumFolder = (dir) => {
+const checksumFolder = async (dir) => {
     const hash = crypto.createHash('sha256');
-    listFilesRecursive(dir).forEach((rel) => {
-        const content = fs.readFileSync(path.join(dir, rel));
+    for (const rel of listFilesRecursive(dir).filter(isPackagedFile)) {
+        const content = await fs.promises.readFile(path.join(dir, rel));
         hash.update(`${rel.length}:${rel}${content.length}:`).update(content);
-    });
+    }
     return hash.digest('hex');
 };
 
 /**
  * Read and validate one skill folder. Filesystem only; no database.
  * @param {string} dir absolute skill folder; its basename is the skill name
- * @returns {{name: string, manifest?: Object, checksum?: string, error?: string}}
+ * @returns {Promise<{name: string, manifest?: Object, checksum?: string, error?: string}>}
  */
-const readSkillFolder = (dir) => {
+const readSkillFolder = async (dir) => {
     const name = path.basename(dir);
     const skillMdPath = path.join(dir, '.claude', 'skills', name, 'SKILL.md');
     const { raw, error: readError } = readManifest(path.join(dir, 'manifest.json'));
@@ -148,7 +160,7 @@ const readSkillFolder = (dir) => {
     const error = checkManifest(name, manifest, skillMdPath);
     if (error) return { name, error };
     const instructions = instructionsFrom(fs.readFileSync(skillMdPath, 'utf8'));
-    return { name, manifest: { ...withDefaults(manifest), instructions }, checksum: checksumFolder(dir) };
+    return { name, manifest: { ...withDefaults(manifest), instructions }, checksum: await checksumFolder(dir) };
 };
 
 /**
@@ -165,4 +177,4 @@ const listSkillFolders = (skillsDir) => {
         .sort();
 };
 
-module.exports = { readSkillFolder, listSkillFolders, manifestDefaults, toolFamily, instructionsFrom };
+module.exports = { readSkillFolder, listSkillFolders, checksumFolder, manifestDefaults, toolFamily, instructionsFrom };

@@ -21,11 +21,11 @@ Authorization: Bearer gwk_…
 
 | Status | Codes |
 |---|---|
-| 400 | `INPUT_INVALID` |
+| 400 | `INPUT_INVALID`, `SKILL_INVALID`, `SKILL_PACKAGE_REJECTED` |
 | 401 | `UNAUTHORIZED` |
 | 403 | `FORBIDDEN`, `FORBIDDEN_SKILL`, `FORBIDDEN_MODEL` |
-| 404 | `NOT_FOUND`, `JOB_NOT_FOUND`, `SKILL_NOT_FOUND`, `SESSION_NOT_FOUND`, `ARTIFACT_NOT_FOUND` |
-| 409 | `INVALID_STATE`, `IDEMPOTENCY_CONFLICT`, `SESSION_BUSY` |
+| 404 | `NOT_FOUND`, `JOB_NOT_FOUND`, `SKILL_NOT_FOUND`, `SESSION_NOT_FOUND`, `ARTIFACT_NOT_FOUND`, `SKILL_SOURCE_NOT_FOUND`, `SKILL_SYNC_NOT_FOUND`, `SECRET_NOT_FOUND` |
+| 409 | `INVALID_STATE`, `IDEMPOTENCY_CONFLICT`, `SESSION_BUSY`, `SKILL_NAME_TAKEN`, `SKILL_VERSION_EXISTS` |
 | 413 | `INPUT_INVALID` (body too large) |
 | 429 | `QUOTA_EXCEEDED` (daily budget, with `Retry-After`), `RATE_LIMITED` |
 | 503 | `INTAKE_PAUSED` |
@@ -61,6 +61,7 @@ Authorization: Bearer gwk_…
 
 | Field | Default | Rules |
 |---|---|---|
+| `skillVersion` | the latest enabled version (highest version number) | Pin a version (`"1.2.0"`). Retries keep the pin; unpinned jobs and their retries run the latest version |
 | `model` | the skill's `defaultModel` | Must be in the app's `allowedModels` |
 | `priority` | `normal` | `low`, `normal` or `high` |
 | `timeoutSec` | the skill's limit | May only lower it |
@@ -165,10 +166,51 @@ When a job finishes, the gateway POSTs:
 
 ## Skills
 
+A job runs the app's **own** skill with that name first, otherwise a **built-in** or **shared** skill granted to the app in `allowedSkills`. Other apps never see an app's own skills.
+
 | Route | Scope | |
 |---|---|---|
-| `GET /skills` | `skills:read` | Skills the app may use: `name`, `version`, `description`, `class`, `defaultModel`, `changes`, `inputSchema`, `outputSchema` |
-| `GET /skills/:name` | `skills:read` | One skill. `403` if it isn't allowed for the app |
+| `GET /skills` | `skills:read` | Skills the app can run: `name`, `version`, `description`, `class`, `defaultModel`, `changes`, `inputSchema`, `outputSchema`, `owner` (`app`, `shared` or `builtin`) |
+| `GET /skills/:name` | `skills:read` | One skill. Own skills add `enabled`, `disabledReason` and `versions[]` (`version`, `checksum`, `sizeBytes`, `enabled`, `createdAt`). `403 FORBIDDEN_SKILL` when the app can't use it |
+
+### Managing your own skills (`skillsManageActive`)
+
+All of these return `404` while the app's `skillsManageActive` flag is off. With the flag off, the app's own skills are also not listed and don't run (queued jobs fail with `SKILL_DISABLED`).
+
+Uploads are refused with `400 SKILL_INVALID` when the skill grants Bash or sets `mcpServers` and the app doesn't have `skillsShellActive` (admin only), or sets a reserved `env` name, or has a file path rule in `allowedTools` such as `Read(//proc/**)` (workspace files need no rule). `409 SKILL_NAME_TAKEN` when the name is a built-in or a live gateway skill.
+
+| Route | Scope | |
+|---|---|---|
+| `POST /skills` | `skills:write` | Upload a skill package as the raw body (`Content-Type: application/gzip`). `201` new version, `200` identical version already stored (`data.status` `created` or `unchanged`). Returns `{ name, version, checksum, status }` |
+| `PATCH /skills/:name` | `skills:write` | `{ "enabled": false }` stops new jobs; `true` turns it back on |
+| `PATCH /skills/:name/versions/:version` | `skills:write` | `{ "enabled": false }` hides one version; the skill then runs its highest enabled version |
+| `DELETE /skills/:name` | `skills:write` | New jobs stop at once. The name is freed: uploading it again starts afresh, with no old versions |
+| `POST /skill-sources` | `skills:write` | Register a git repository: `{ repoUrl, ref?, path?, credentialSecret? }`. `path` is a folder in the repo (default the root); `credentialSecret` names one of your secrets holding a token (or `username:token`) |
+| `GET /skill-sources`, `DELETE /skill-sources/:id` | `skills:read` / `skills:write` | List or remove sources. Skills already synced stay |
+| `POST /skill-sources/:id/sync` | `skills:write` | "Sync now": the worker clones the repo and stores every folder with a `manifest.json` as a version. `202 { syncId, status }`; with `?wait=1..30`, `200` and the result when it finishes in time |
+| `GET /skill-sources/:id/syncs/:syncId` | `skills:read` | `{ status, added[], unchanged[], failed[{ name, error }], error }`. `error.code` is `SKILL_SOURCE_FAILED` when the clone itself failed |
+| `PUT /secrets/:name` | `secrets:write` | `{ "value": "…" }`. Stored encrypted, never returned |
+| `GET /secrets` | `secrets:write` | Names and `updatedAt` only |
+| `DELETE /secrets/:name` | `secrets:write` | |
+
+**Package format:** the skill folder as a gzipped tar, with `manifest.json` and `.claude/skills/<name>/SKILL.md` (plus any reference files under `.claude/`). The CLI builds it for you: `headless-claude skills push <folder>`.
+
+```bash
+tar -czf skill.tgz -C my-skill manifest.json .claude
+curl -X POST localhost:4100/api/v1/skills -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/gzip" --data-binary @skill.tgz
+```
+
+**Rules:**
+- **Validation:** the same as gateway skills (manifest schema, `SKILL.md` rules, no bare file tools), plus:
+  - `credentialProfile` must be the default
+  - only regular files under `manifest.json` and `.claude/`
+  - no symlinks
+  - at most `skills.maxPackageBytes` packed, `skills.maxUnpackedBytes` unpacked and `skills.maxFiles` files
+- **Versions:** a version never changes. The same version with different content is `409 SKILL_VERSION_EXISTS`; bump `manifest.version`. The highest enabled version number is the latest, so uploading a `1.4.1` hotfix after `2.0.0` leaves unpinned jobs on `2.0.0`.
+- **Names:** a name used by a built-in or shared skill is `409 SKILL_NAME_TAKEN`.
+- **Secrets:** a manifest's `"env": { "TOKEN": "secret:<name>" }` reads the app's own secret `<name>`. Values are at most `skills.maxSecretValueChars` characters. Reserved env names (refused at upload) include those that redirect Claude or load code: `ANTHROPIC_*`, `CLAUDE*`, `NODE_*`, `LD_*`, `GIT_*`, `JAVA_*`, `XDG_*`, `PYTHON*`, `SSL*`, `*_PROXY`, `PATH`, `HOME`, `TMP`, `PROMPT_COMMAND`, `HOSTALIASES` and more (`src/constants/skill.js`).
+- **Concurrent "sync now":** requests for a source that already has a queued or running sync join it (same `syncId`).
 
 ## Sessions (`sessionsActive`)
 
@@ -191,13 +233,14 @@ A session keeps one Claude conversation and one workspace across jobs. The secon
 | `POST /admin/intake/pause`, `POST /admin/intake/resume` | Stop or allow new jobs for every app |
 | `POST /admin/jobs/:id/redeliver` | Retry a failed code delivery (`succeeded` jobs with `delivery.status = failed`). The workspace is kept for this, and the worker redelivers within one reaper interval |
 | `GET /admin/stats` | Job counts by status, plan utilization, active pauses, provider health |
+| `POST /admin/skills/sync` | Re-read the built-in and shared skill folders now (the worker also does this at start) |
 
 **App settings** (`POST`/`PATCH /admin/apps`):
 
 | Setting | Notes |
 |---|---|
-| `allowedSkills`, `allowedModels` | What the app may use |
-| `features` | Any of `chatActive`, `sessionsActive`, `changeDeliveryActive`, `webhooksActive`, `streamTokensActive`, `waitModeActive` |
+| `allowedSkills`, `allowedModels` | Built-in and shared skills, and models, the app may use (its own skills need no grant) |
+| `features` | Any of `chatActive`, `sessionsActive`, `changeDeliveryActive`, `webhooksActive`, `streamTokensActive`, `waitModeActive`, `skillsManageActive`, `skillsShellActive` (the app's own skills may grant Bash and MCP servers; code they run can read the Claude credential) |
 | `runWindows` | `[{ "tz": "Asia/Kolkata", "from": "22:00", "to": "07:00" }]` |
 | `timezone` | IANA time zone |
 | `dailyTokenBudget` | Weighted tokens per day |

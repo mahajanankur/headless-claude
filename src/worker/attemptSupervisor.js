@@ -5,11 +5,12 @@ const fs = require('fs');
 const path = require('path');
 
 const config = require('../../config');
-const { PATHS } = require('../../config/paths');
 
 const executionService = require('../services/execution.service');
 const providerStateService = require('../services/providerState.service');
 const sessionService = require('../services/session.service');
+const skillService = require('../services/skill.service');
+const appSecretService = require('../services/appSecret.service');
 const deliveryService = require('../services/delivery.service');
 const { isFeatureEnabled } = require('../services/app.service');
 const { classifyOutcome } = require('../services/outcome.service');
@@ -18,6 +19,7 @@ const { recordAttemptTrace, isTracingEnabled } = require('../infra/langfuse');
 const { weightedTokens } = require('../services/usage.service');
 const { getSecrets } = require('../infra/secrets');
 const workspace = require('./workspaceManager');
+const skillCache = require('./skillCache');
 const { buildArgs, buildEnv, buildSettings } = require('./argsBuilder');
 const {
     parseLine,
@@ -34,6 +36,7 @@ const { repoPaths, cloneRepo, removeRepo, listTrackedFiles } = require('./git/re
 const { collectOutputs } = require('./artifactStore');
 const { deliverChanges } = require('./changeDelivery');
 const getLogger = require('../utils/logger');
+const { ValidationError } = require('../utils/AppError');
 const { runWithContext } = require('../utils/requestContext');
 const { ATTEMPT_MODE, CREDENTIAL_PROFILE, CHANGE_MODE } = require('../constants/skill');
 const { ERROR_CLASS } = require('../constants/errorClasses');
@@ -81,12 +84,15 @@ const credentialFor = (manifest) => {
     return { claudeOauthToken: secrets.claudeOauthToken };
 };
 
-const skillEnvFor = (manifest) => {
-    const values = getSecrets().values;
-    return Object.fromEntries(
+/**
+ * Manifest env for the run. App-owned skills read only their app's secrets (D4); gateway skills read the
+ * gateway secrets file.
+ */
+const skillEnvFor = (manifest, values) =>
+    Object.fromEntries(
         Object.entries(manifest.env || {}).map(([name, ref]) => {
             const key = ref.replace(/^secret:/, '');
-            if (!(key in values))
+            if (!Object.hasOwn(values, key))
                 throw new LaunchError(
                     `Secret '${key}' required by the skill is not configured.`,
                     ERROR_CLASS.VALIDATION,
@@ -94,12 +100,28 @@ const skillEnvFor = (manifest) => {
             return [name, values[key]];
         }),
     );
-};
 
-const skillDirs = (manifest) =>
-    Object.fromEntries(
-        [manifest.name, ...(manifest.uses || [])].map((name) => [name, path.join(PATHS.skillsDir, name)]),
-    );
+/**
+ * Mount points for the attempt's skill and the skills it uses (unpacked from the store into the
+ * host cache), plus the secret values its manifest may reference.
+ * @returns {Promise<{skills: Object<string, string>, secretValues: Object<string, string>}>}
+ */
+const prepareSkills = async (job, attempt, app) => {
+    let plan;
+    const skills = {};
+    try {
+        plan = await skillService.runPlanInternal(job, attempt, app);
+        for (const skill of plan.skills) skills[skill.name] = await skillCache.ensure(skill);
+    } catch (error) {
+        // a missing, blocked or corrupt skill fails the same way on every retry; I/O errors may not
+        const errorClass = error instanceof ValidationError ? ERROR_CLASS.VALIDATION : ERROR_CLASS.GATEWAY;
+        throw new LaunchError(`Skill files unavailable: ${error.message}`, errorClass);
+    }
+    const secretValues = plan.ownerAppId
+        ? await appSecretService.valuesForAppInternal(plan.ownerAppId)
+        : getSecrets().values;
+    return { skills, secretValues };
+};
 
 const resolveSessionPlan = async (job, attempt) => {
     if (attempt.mode === ATTEMPT_MODE.RESUME && job.resumeAttemptId) {
@@ -141,11 +163,11 @@ const pathEnvFor = (runner) =>
         ? SANDBOX_PATH_ENV
         : `${path.dirname(claudeBin)}:${path.dirname(process.execPath)}:${SANDBOX_PATH_ENV}`;
 
-const buildCommand = ({ job, manifest, runner, paths, plan }) => ({
+const buildCommand = ({ job, manifest, runner, paths, plan, secretValues }) => ({
     env: buildEnv({
         paths,
         credential: credentialFor(manifest),
-        skillEnv: skillEnvFor(manifest),
+        skillEnv: skillEnvFor(manifest, secretValues),
         pathEnv: pathEnvFor(runner),
         egressProxy: config.get('runner.egressProxy'),
     }),
@@ -177,10 +199,10 @@ const buildCommand = ({ job, manifest, runner, paths, plan }) => ({
  * @param {{job: Object, attempt: Object, app: Object, runner: Object, plan: Object}} ctx
  * @returns {Object} launch spec for runner.start
  */
-const buildLaunchSpec = ({ job, attempt, app, runner, plan }) => {
+const buildLaunchSpec = ({ job, attempt, app, runner, plan, prepared }) => {
     const { manifest } = attempt;
+    const { skills, secretValues } = prepared;
     const dirs = workspace.attemptDirs({ jobId: job.id, appId: job.appId, attemptN: attempt.n, wsDir: plan.wsDir });
-    const skills = skillDirs(manifest);
     dirs.mcpConfigFile = Object.keys(manifest.mcpServers || {}).length ? path.join(dirs.metaDir, 'mcp.json') : null;
     const paths = runner.sandboxPaths(dirs, skills);
     workspace.prepareAttempt(dirs, {
@@ -191,7 +213,7 @@ const buildLaunchSpec = ({ job, attempt, app, runner, plan }) => {
     return {
         dirs,
         skills,
-        ...buildCommand({ job, manifest, runner, paths, plan }),
+        ...buildCommand({ job, manifest, runner, paths, plan, secretValues }),
         name: `gw-${attempt.id}`,
         claudeBin,
         runtimeMaxSec: job.timeoutSec + KILL_GRACE_SEC * 4 + 60,
@@ -203,7 +225,8 @@ const buildLaunchSpec = ({ job, attempt, app, runner, plan }) => {
 const startProcess = async ({ job, attempt, app, runner }) => {
     let spec = null;
     try {
-        spec = buildLaunchSpec({ job, attempt, app, runner, plan: await resolveSessionPlan(job, attempt) });
+        const prepared = await prepareSkills(job, attempt, app);
+        spec = buildLaunchSpec({ job, attempt, app, runner, plan: await resolveSessionPlan(job, attempt), prepared });
         await prepareRepo(job, spec.dirs.wsDir, app);
         const envFile = runner.usesEnvFile ? workspace.writeEnvFile(spec.dirs, spec.env) : null;
         const handle = await runner.start({ ...spec, envFile });

@@ -1,12 +1,15 @@
 # Production-style stack on one host (Docker runner). See docs/deployment.md.
-#   docker build -f Dockerfile.runner -t headless-claude-runner .
-#   docker compose -f compose.prod.yaml up -d
+# Uses the published images (GW_VERSION, default latest):
+#   docker compose -f compose.prod.yaml pull && docker compose -f compose.prod.yaml up -d
+# or builds them from this checkout:
+#   docker compose -f compose.prod.yaml build
+#   docker build -f Dockerfile.runner -t ghcr.io/mahajanankur/headless-claude-runner:latest .
 #
 # The worker starts sibling containers through the host Docker socket, so it is effectively root on the
 # host. Run it on a host dedicated to the gateway, or use the host runner (systemd) instead.
 # GW_DATA_DIR must be the same path inside and outside the worker container (bind-mount sources).
 x-gateway: &gateway
-  image: headless-claude
+  image: ghcr.io/mahajanankur/headless-claude:${GW_VERSION:-latest}
   build: .
   restart: unless-stopped
   env_file: .env.production
@@ -59,6 +62,7 @@ services:
       GW_DATA_DIR: /var/gw
       WORKER_RUNTIME: docker
       RUNNER_DOCKER_USER: '1000:1000'
+      RUNNER_DOCKER_IMAGE: ghcr.io/mahajanankur/headless-claude-runner:${GW_VERSION:-latest}
     depends_on:
       migrate:
         condition: service_completed_successfully

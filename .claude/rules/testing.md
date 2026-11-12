@@ -9,7 +9,7 @@ paths:
 ## Never spend real Claude usage in tests
 - **Default suites never call real Claude.** Integration tests run the real API, worker and runner with the fake `claude` (`test/fixtures/fake-claude/claude`).
 - **Scenarios** are chosen by the job input's `scenario`:
-  - outcomes: `success`, `write_out`, `edit_repo`, `no_output`
+  - outcomes: `success`, `write_out`, `edit_repo`, `no_output`, `probe` (records the env vars named in `input.envNames` and each skill's `references/note.md`)
   - failures: `bash_then_crash`, `crash`, `limit`, `auth`
   - timing: `hang`, `slow`, `expensive`
 - **New behaviour gets a new scenario.** Its output must match the shapes recorded in `test/fixtures/claude/*.jsonl`.

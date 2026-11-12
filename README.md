@@ -83,6 +83,10 @@ npm ci
 npm run setup
 ```
 
+From v0.2.0, each release is also published, so you won't need a clone:
+- **npm:** `npm install -g headless-claude`, then run `headless-claude setup` and `headless-claude start` in an empty folder.
+- **Docker images:** `ghcr.io/mahajanankur/headless-claude` and `ghcr.io/mahajanankur/headless-claude-runner`.
+
 `setup` checks your tools, starts Postgres, runs the migrations and asks for your `claude setup-token` token. It then creates API keys, saves them to `.gateway-keys.local`, and asks whether you want LangFuse.
 
 ### 2. Start the gateway
@@ -156,6 +160,21 @@ skills/repo-review/
 |---|---|
 | `repo-review` | Clones a repository and returns structured review findings (severity, file, line, issue) |
 | `chat` | Plain multi-turn conversation, behind `POST /api/v1/chat` |
+
+### Bring your own skill
+
+Your team's skills never go into the gateway's code. Turn on `skillsManageActive` for your app, then:
+
+```bash
+npx headless-claude skills push ./my-skill --url https://gateway.example.com --key $GW_KEY
+# or register a git repo once and let CI call "sync now":
+curl -X POST https://gateway.example.com/api/v1/skill-sources -H "Authorization: Bearer $GW_KEY" \
+  -H "Content-Type: application/json" -d '{"repoUrl":"https://github.com/<owner>/<skills-repo>.git","path":"skills"}'
+```
+
+- **Private:** your skills are visible only to your app.
+- **Versioned:** jobs can pin a `skillVersion`.
+- **Secrets:** skills read your app's own secrets (`PUT /api/v1/secrets/<name>`).
 
 - **Validated:** manifests are checked against [`src/schemas/skillManifest.schema.json`](src/schemas/skillManifest.schema.json). `npm run skills:sync` registers them, and an invalid skill is stored disabled, with the reason.
 - **Locked down:** callers can't override a skill's tools, environment, permissions or credential.

@@ -14,7 +14,11 @@ const TABLES = [
     'job_attempts',
     'jobs',
     'sessions',
+    'skill_syncs',
+    'skill_versions',
     'skills',
+    'skill_sources',
+    'app_secrets',
     'api_keys',
     'apps',
 ];

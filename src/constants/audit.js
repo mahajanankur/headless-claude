@@ -13,6 +13,15 @@ const AUDIT_ACTION = Object.freeze({
     INTAKE_PAUSED: 'intake.paused',
     INTAKE_RESUMED: 'intake.resumed',
     APP_JOBS_CANCELLED: 'app.jobs_cancelled',
+    SKILL_VERSION_ADDED: 'skill.version_added',
+    SKILL_UPDATED: 'skill.updated',
+    SKILL_DELETED: 'skill.deleted',
+    SKILLS_RESYNCED: 'skills.resynced',
+    SKILL_SOURCE_CREATED: 'skill_source.created',
+    SKILL_SOURCE_DELETED: 'skill_source.deleted',
+    SKILL_SYNC_REQUESTED: 'skill_source.sync_requested',
+    SECRET_SET: 'secret.set',
+    SECRET_DELETED: 'secret.deleted',
 });
 
 module.exports = { AUDIT_ACTION };

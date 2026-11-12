@@ -21,8 +21,10 @@ const readline = require('readline');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const ENV_FILE = path.join(ROOT, '.env.local');
-const KEYS_FILE = path.join(ROOT, '.gateway-keys.local');
+// files this setup creates live in the working folder (GW_HOME or the current directory)
+const HOME = path.resolve(process.env.GW_HOME || process.cwd());
+const ENV_FILE = path.join(HOME, '.env.local');
+const KEYS_FILE = path.join(HOME, '.gateway-keys.local');
 
 const ok = (msg) => process.stdout.write(`  ✓ ${msg}\n`);
 const step = (msg) => process.stdout.write(`\n${msg}\n`);
@@ -30,7 +32,8 @@ const fail = (msg) => {
     process.stdout.write(`  ✗ ${msg}\n`);
     process.exit(1);
 };
-const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', ...opts });
+const run = (cmd, args, opts = {}) =>
+    spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', ...opts, env: { ...process.env, GW_HOME: HOME, ...opts.env } });
 const has = (cmd) => run('/bin/sh', ['-c', `command -v ${cmd}`]).status === 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -114,9 +117,9 @@ const ensureDatabase = async () => {
 
 const migrate = () => {
     step('4. Migrations');
-    const cli = path.join(ROOT, 'node_modules', '.bin', 'sequelize-cli');
+    const cli = require.resolve('sequelize-cli/lib/sequelize');
     for (const env of ['development', 'test']) {
-        const res = run(cli, ['db:migrate'], { env: { ...process.env, NODE_ENV: env } });
+        const res = run(process.execPath, [cli, 'db:migrate'], { env: { NODE_ENV: env } });
         if (res.status !== 0) fail(`${env} migration failed:\n${res.stdout}${res.stderr}`);
         ok(`${env} database migrated`);
     }
@@ -135,7 +138,7 @@ const ensureSecrets = () => {
         }
     }
     if (changed) fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-    ok(changed ? `created keys in ${path.relative(ROOT, file)}` : 'secrets file ready');
+    ok(changed ? `created keys in ${path.relative(HOME, file)}` : 'secrets file ready');
     return { file, data };
 };
 

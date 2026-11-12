@@ -18,6 +18,9 @@ const { AdvisoryLock } = require('../infra/advisoryLock');
 const { AttemptRun, setClaudeBin } = require('./attemptSupervisor');
 const { resolveBinary, checkClaude } = require('./providerHealth');
 const workspace = require('./workspaceManager');
+const skillCache = require('./skillCache');
+const { runSync } = require('./skillSyncer');
+const skillSourceService = require('../services/skillSource.service');
 const { removeArtifacts } = require('./artifactStore');
 const { removeRepo } = require('./git/repoManager');
 const { deliverChanges } = require('./changeDelivery');
@@ -38,6 +41,7 @@ const REAPER_ENABLED = config.get('scheduler.reaperEnabled');
 const REAPER_MS = config.get('scheduler.reaperIntervalSec') * 1000;
 const RETENTION_ENABLED = config.get('scheduler.retentionEnabled');
 const CONCURRENCY = config.get('worker.concurrency');
+const SKILL_SYNC_POLL_MS = config.get('worker.skillSyncPollMs');
 const REAPER_LOCK_KEY = 728371;
 
 /** Run fn on an interval; never throws, never overlaps itself. */
@@ -66,6 +70,8 @@ class Worker {
         this.timers = [];
         this.stopping = false;
         this.claiming = false;
+        this.syncing = false;
+        this.currentSync = null;
         this.reaperLock = new AdvisoryLock(REAPER_LOCK_KEY);
     }
 
@@ -77,9 +83,10 @@ class Worker {
             this.claudeBin = bin;
             setClaudeBin(bin);
         }
-        await skillService.syncFromDisk().catch((error) => logger.error(`Skill sync failed: ${error.message}`));
-        await notifyHub.start([CHANNELS.JOB_QUEUED, CHANNELS.JOB_CANCEL]);
+        await skillService.syncGatewaySkills().catch((error) => logger.error(`Skill sync failed: ${error.message}`));
+        await notifyHub.start([CHANNELS.JOB_QUEUED, CHANNELS.JOB_CANCEL, CHANNELS.SKILL_SYNC_QUEUED]);
         notifyHub.on(CHANNELS.JOB_QUEUED, () => this.claimLoop());
+        notifyHub.on(CHANNELS.SKILL_SYNC_QUEUED, () => this.syncLoop());
         notifyHub.on(CHANNELS.JOB_CANCEL, ({ jobId }) => this.cancelLocal(jobId));
         await this.recover();
         this.timers.push(
@@ -88,6 +95,7 @@ class Worker {
             every(HEARTBEAT_MS, 'heartbeat', this.heartbeat),
             every(WEBHOOK_MS, 'webhooks', webhookService.dispatchDueWebhooks),
             every(HEALTH_MS, 'health', this.health),
+            every(SKILL_SYNC_POLL_MS, 'skill syncs', this.syncLoop),
         );
         if (REAPER_ENABLED) this.timers.push(every(REAPER_MS, 'reaper', this.reaper));
         await this.health();
@@ -124,12 +132,33 @@ class Worker {
         }
     };
 
+    /** Git skill syncs, one at a time per worker (they are short and rare). */
+    syncLoop = async () => {
+        if (this.stopping || this.syncing) return;
+        this.syncing = true;
+        try {
+            let claimed = await skillSourceService.claimNextSyncInternal(this.hostId);
+            while (claimed && !this.stopping) {
+                this.currentSync = claimed;
+                await runSync(claimed);
+                this.currentSync = null;
+                claimed = await skillSourceService.claimNextSyncInternal(this.hostId);
+            }
+        } catch (error) {
+            logger.error(`Skill sync loop failed: ${error.message}`, error);
+        } finally {
+            this.currentSync = null;
+            this.syncing = false;
+        }
+    };
+
     heartbeat = async () => {
         const runs = [...this.runs.values()];
         await executionService.renewLeases(
             this.hostId,
             runs.map((r) => r.job.id),
         );
+        if (this.currentSync) await skillSourceService.renewSyncInternal(this.currentSync);
         const active = await executionService.activeJobsForHost(this.hostId);
         active
             .filter((j) => j.cancelRequested || j.status === JOB_STATUS.CANCELLING)
@@ -240,6 +269,8 @@ class Worker {
     };
 
     health = async () => {
+        // the skill cache is per host, so every worker prunes its own (not only the reaper holder)
+        await this.isolated('skill cache prune', async () => skillCache.prune());
         const claude = await checkClaude({ runnerName: this.runner.name, claudeBin: this.claudeBin });
         await providerStateService.recordHealth({
             ...claude,

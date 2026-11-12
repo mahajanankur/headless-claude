@@ -77,8 +77,11 @@ describe('encryption', () => {
         const enc = encryptSecret('webhook-secret', key);
         expect(decryptSecret(enc, key)).toBe('webhook-secret');
         expect(() => decryptSecret(enc, 'cd'.repeat(32))).toThrow();
-        const last = enc.slice(-1);
-        const tampered = enc.slice(0, -1) + (last === 'A' ? 'B' : 'A'); // always a different character
+        // flip a bit of a real ciphertext byte (changing the last base64 character can touch only padding bits)
+        const parts = enc.split(':');
+        const body = Buffer.from(parts[3], 'base64url');
+        body[0] ^= 1;
+        const tampered = [...parts.slice(0, 3), body.toString('base64url')].join(':');
         expect(() => decryptSecret(tampered, key)).toThrow();
         expect(() => encryptSecret('x', 'short')).toThrow(/32 bytes/);
     });

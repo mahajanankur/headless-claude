@@ -11,6 +11,8 @@ const JOB_ATTRIBUTES = [
     'id',
     'appId',
     'skillName',
+    'skillId',
+    'skillVersionId',
     'skillClass',
     'model',
     'status',

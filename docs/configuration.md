@@ -24,6 +24,8 @@ Configuration uses [node-config](https://github.com/node-config/node-config). Th
 
 **Never create `config/local.json`:** node-config loads it in every environment, production included.
 
+**Working folder (`GW_HOME`):** `.env.local`, and relative `paths.dataDir`, `paths.secretsFile` and `paths.sharedSkillsDir`, resolve against `GW_HOME`, which defaults to the current directory. Built-in skills (`paths.skillsDir`) and the code resolve against the package. Run from the repository root, this is the repository, as before. An npm-installed CLI keeps its state in the folder it is run from.
+
 ## Environment variables
 
 | Variable | Key | Format |
@@ -53,6 +55,7 @@ Configuration uses [node-config](https://github.com/node-config/node-config). Th
 | `GW_DATA_DIR` | `paths.dataDir` |  |
 | `GW_SKILLS_DIR` | `paths.skillsDir` |  |
 | `GW_SECRETS_FILE` | `paths.secretsFile` |  |
+| `GW_SHARED_SKILLS_DIR` | `paths.sharedSkillsDir` |  |
 | `LOG_LEVEL` | `logging.level` |  |
 | `WEBHOOK_ALLOW_PRIVATE_HOSTS` | `webhook.allowPrivateHosts` | boolean |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `secrets.claudeOauthToken` |  |
@@ -77,13 +80,14 @@ Configuration uses [node-config](https://github.com/node-config/node-config). Th
 | `rateLimit` | `windowSec`, `perKey`, `perIp` |
 | `pagination` | `defaultLimit`, `maxLimit` |
 | `job` | `maxInputBytes`, `waitMaxSec`, `minTimeoutSec`, `maxTimeoutSec`, `maxStreamLineBytes`, `maxOutputBytes`, `maxArtifactBytes`, `eventSummaryMaxChars`, `maxAutoRetries`, `retryBaseDelaySec`, `maxEventsPerPage`, `retryMaxDelaySec`, `cancelGraceSec`, `maxPatchBytes` |
+| `skills` | `maxPackageBytes`, `maxUnpackedBytes`, `maxFiles`, `cacheTtlHours`, `syncWaitMaxSec`, `syncRetentionDays`, `maxSecretValueChars` |
 | `llm` | `allowedModels`, `defaultModel`, `claudeBin`, `pinnedVersion`, `settingSources`, `permissionMode`, `editPermissionMode`, `alwaysDisallowedTools` |
 | `runner` | `mode`, `sandbox`, `dockerImage`, `memoryMax`, `cpus`, `pidsLimit`, `runAsUser`, `hostHelper`, `killGraceSec`, `dockerUser`, `dockerNetwork`, `egressProxy`, `tmpfsSize`, `ccwrapPath`, `containerCcwrapPath`, `containerClaudeBin`, `containerNodeBin` |
-| `worker` | `hostId`, `concurrency`, `longJobSlots`, `pollMs`, `claimBatch`, `leaseSec`, `heartbeatSec`, `reattachGraceSec`, `tailIntervalMs`, `eventBatchSize`, `healthIntervalSec`, `webhookIntervalSec` |
+| `worker` | `hostId`, `concurrency`, `longJobSlots`, `pollMs`, `claimBatch`, `leaseSec`, `heartbeatSec`, `reattachGraceSec`, `tailIntervalMs`, `eventBatchSize`, `healthIntervalSec`, `webhookIntervalSec`, `skillSyncPollMs` |
 | `usage` | `cacheReadWeight`, `longJobMaxUtilization`, `quickJobMaxUtilization`, `softCapRatio` |
 | `stream` | `heartbeatSec` |
 | `scheduler` | `reaperEnabled`, `reaperIntervalSec`, `retentionEnabled`, `eventsRetentionDays`, `jobsRetentionDays`, `failedWorkspaceRetentionDays` |
-| `paths` | `dataDir`, `skillsDir`, `secretsFile` |
+| `paths` | `dataDir`, `skillsDir`, `secretsFile`, `sharedSkillsDir` |
 | `logging` | `level` |
 | `webhook` | `timeoutMs`, `maxAttempts`, `maxAgeHours`, `allowPrivateHosts`, `batchSize` |
 | `git` | `bin`, `cloneDepth`, `timeoutSec`, `githubApiUrl`, `allowedHosts`, `allowFileUrls`, `authorName`, `authorEmail` |

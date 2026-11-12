@@ -2,6 +2,7 @@
 
 const config = require('../../config');
 
+const { isAllowedSkillEnvName } = require('../utils/envPolicy');
 const { CHANGE_MODE, ATTEMPT_MODE, BASE_TOOLS, EDIT_TOOLS } = require('../constants/skill');
 
 const PERMISSION_MODE = config.get('llm.permissionMode');
@@ -21,7 +22,7 @@ const RESUME_PROMPT =
  */
 const needsEdits = (manifest) => Boolean(manifest.edits) || manifest.changes !== CHANGE_MODE.NONE;
 
-const preamble = (jobId, manifest) =>
+const preamble = (jobId, manifest, skillDir) =>
     [
         `You are running as unattended job ${jobId} in headless-claude. Nobody can answer questions;`,
         'make reasonable decisions and finish. The request is in ./input.json.',
@@ -29,6 +30,9 @@ const preamble = (jobId, manifest) =>
             ? 'Write any files meant for the caller under ./out/.'
             : 'You can read files; you cannot change them.',
         manifest.repo ? 'The repository is checked out at ./repo; ./repo-files.txt lists its tracked files.' : '',
+        skillDir
+            ? `This skill's files (references, templates) are in ${skillDir}/.claude/skills/${manifest.name}/.`
+            : '',
         manifest.outputSchema
             ? 'When you are done you MUST call the StructuredOutput tool with your final answer.'
             : '',
@@ -41,11 +45,12 @@ const preamble = (jobId, manifest) =>
  * slash commands are disabled, so no bundled command or skill can run), then the manifest's appendSystemPrompt.
  * @param {string} jobId
  * @param {Object} manifest the attempt's snapshot (instructions come from SKILL.md at sync time)
+ * @param {string} [skillDir] the skill's folder as seen inside the sandbox
  * @returns {string}
  */
-const systemPrompt = (jobId, manifest) =>
+const systemPrompt = (jobId, manifest, skillDir) =>
     [
-        preamble(jobId, manifest),
+        preamble(jobId, manifest, skillDir),
         manifest.instructions ? `# Skill: ${manifest.name}\n\n${manifest.instructions}` : '',
         manifest.appendSystemPrompt || '',
     ]
@@ -74,7 +79,11 @@ const buildSettings = ({ paths, sandboxOn }) => ({
             `Read(/${paths.run}/**)`,
             `Edit(/${paths.run}/**)`,
             `Edit(/${paths.control}/**)`,
-            `Edit(/${paths.home}/.claude/settings.json)`,
+            // the app's Claude home holds its config (MCP servers, settings) and other jobs' sessions; /proc holds
+            // the process environment with the Claude credential. Deny wins over any allow rule a skill grants.
+            `Read(/${paths.home}/**)`,
+            `Edit(/${paths.home}/**)`,
+            'Read(//proc/**)',
             ...Object.values(paths.skills).map((dir) => `Edit(/${dir}/**)`),
         ],
     },
@@ -94,8 +103,13 @@ const buildSettings = ({ paths, sandboxOn }) => ({
  * @returns {Object<string, string>}
  */
 const buildEnv = ({ paths, credential, skillEnv, pathEnv, egressProxy }) => {
+    // the validator already refuses these names; dropping them here keeps an old stored manifest from
+    // redirecting Claude (and its credential) or loading code
+    const allowedSkillEnv = Object.fromEntries(
+        Object.entries(skillEnv || {}).filter(([name]) => isAllowedSkillEnvName(name)),
+    );
     const env = {
-        ...skillEnv,
+        ...allowedSkillEnv,
         HOME: paths.home,
         CLAUDE_CONFIG_DIR: `${paths.home}/.claude`,
         PATH: pathEnv,
@@ -165,7 +179,7 @@ const buildArgs = ({ jobId, manifest, model, paths, mode, resumeSessionId, newSe
         '--settings',
         paths.settingsFile,
         '--append-system-prompt',
-        systemPrompt(jobId, manifest),
+        systemPrompt(jobId, manifest, paths.skills[manifest.name]),
         '--tools',
         joinTools(availableTools(manifest)),
         '--disallowedTools',
@@ -174,7 +188,9 @@ const buildArgs = ({ jobId, manifest, model, paths, mode, resumeSessionId, newSe
     Object.values(paths.skills).forEach((dir) => args.push('--add-dir', dir));
     if (manifest.allowedTools.length) args.push('--allowedTools', joinTools(manifest.allowedTools));
     if (manifest.outputSchema) args.push('--json-schema', JSON.stringify(manifest.outputSchema));
-    if (paths.mcpConfigFile) args.push('--mcp-config', paths.mcpConfigFile, '--strict-mcp-config');
+    // always strict: MCP servers come only from the manifest, never from config left in the app's home
+    if (paths.mcpConfigFile) args.push('--mcp-config', paths.mcpConfigFile);
+    args.push('--strict-mcp-config');
     if (resumeSessionId) args.push('--resume', resumeSessionId);
     else args.push('--session-id', newSessionId);
     return args;

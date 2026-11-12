@@ -9,8 +9,8 @@ const artifactRepository = require('../repositories/artifact.repository');
 const appRepository = require('../repositories/app.repository');
 const appUsageDailyRepository = require('../repositories/appUsageDaily.repository');
 const webhookDeliveryRepository = require('../repositories/webhookDelivery.repository');
-const skillRepository = require('../repositories/skill.repository');
 const sessionService = require('./session.service');
+const skillService = require('./skill.service');
 const providerStateService = require('./providerState.service');
 const { writeStatusEvent } = require('./job.service');
 const { isFeatureEnabled } = require('./app.service');
@@ -63,7 +63,7 @@ const failQueued = async (job, errorCode, errorMessage, transaction) => {
 };
 
 const checkSkillStillValid = async (job, transaction) => {
-    const skill = await skillRepository.findByName(job.skillName, { transaction });
+    const skill = await skillService.resolveForClaimInternal(job, { transaction });
     if (!skill || !skill.enabled) {
         await failQueued(job, 'SKILL_DISABLED', `Skill '${job.skillName}' is no longer available.`, transaction);
         return null;
@@ -146,6 +146,12 @@ const tryClaimCandidate = async (job, ctx, claimArgs, transaction) => {
     const skill = await checkSkillStillValid(job, transaction);
     const app = ctx.appsById[job.appId];
     if (!skill || !app) return null;
+    // an app's own skill stops when its flags change after the job was queued
+    const blocked = skillService.appSkillBlockReason(skill, app);
+    if (blocked) {
+        await failQueued(job, 'SKILL_DISABLED', blocked, transaction);
+        return null;
+    }
     const decision = await policyFor(job, app, skill, ctx);
     if (!decision.ok) {
         if (DEFERRABLE.includes(decision.reason) && decision.retryAt)

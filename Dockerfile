@@ -16,8 +16,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY config ./config
 COPY src ./src
-COPY skills ./skills
+# only the built-in skills; teams upload their own skills over the API
+COPY skills/chat ./skills/chat
+COPY skills/repo-review ./skills/repo-review
 COPY scripts ./scripts
+COPY bin ./bin
 COPY .sequelizerc ./
 
 ENV NODE_ENV=production

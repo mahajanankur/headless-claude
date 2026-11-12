@@ -45,15 +45,32 @@ Client ─HTTP / SSE / Socket.IO─▶ API process
 
 ## 3. Skills
 
-A skill is a folder in the skills directory:
+A skill is a folder:
 
 ```
-skills/<name>/
+<name>/
 ├── manifest.json
-└── .claude/skills/<name>/SKILL.md
+└── .claude/skills/<name>/SKILL.md     (+ any reference files under .claude/)
 ```
 
-The worker passes the folder with `--add-dir` (for its scripts and references), injects the `SKILL.md` body as system instructions, and sends the manifest `prompt` as the user message. Slash commands are disabled, so no bundled Claude Code command or skill can run.
+**Where skills come from:**
+
+| Kind | Source | Owner | Who can run it |
+|---|---|---|---|
+| Built-in | `skills/` inside the package or image (`chat`, `repo-review`) | Gateway | Apps that list it in `allowedSkills` |
+| Shared | The folder in `GW_SHARED_SKILLS_DIR` | Gateway (admin) | Apps that list it in `allowedSkills` |
+| App skill | `POST /skills` upload, or a git source synced with "sync now" | One app | That app only |
+
+**How skills are stored and loaded:**
+- **Stored:** every skill is kept as **versions** in `skill_versions` (manifest plus the packed folder). A version never changes. The checksum is over the files, so re-packing the same folder is not a new version.
+- **Gateway folders:** the worker re-reads the built-in and shared folders at start (and on `POST /admin/skills/sync`). Editing a gateway folder without bumping its version replaces that version.
+- **Unpacked once per host:** a worker unpacks a version on first use into `<dataDir>/skill-cache/<checksum>/` (read-only, checksum verified, atomic rename). Every attempt on that host mounts it from there, so several worker hosts only share Postgres.
+- **Which version runs:**
+  - A job runs the latest enabled version unless it pins `skillVersion`. "Latest" is the highest version number (an older hotfix uploaded later doesn't become the latest). For gateway folders it is the folder's version.
+  - An attempt records the version and checksum it ran.
+  - `uses` resolves the app's own skills first, then gateway skills the app is granted (`allowedSkills`).
+
+The worker passes the skill folder with `--add-dir` (for its scripts and references), injects the `SKILL.md` body as system instructions, and sends the manifest `prompt` as the user message. Slash commands are disabled, so no bundled Claude Code command or skill can run.
 
 **Manifest fields** (validated by [`src/schemas/skillManifest.schema.json`](../src/schemas/skillManifest.schema.json)):
 
@@ -65,14 +82,16 @@ The worker passes the folder with `--add-dir` (for its scripts and references), 
 | `inputSchema`, `outputSchema` | Contracts. The output is enforced with `--json-schema` |
 | `prompt`, `appendSystemPrompt` | What starts the run |
 | `allowedTools`, `disallowedTools` | Extra pre-approved tools. **Bare file tools (`Read`, `Write`, …) are rejected**, because file access is already limited to the workspace |
-| `env` | `secret:<name>` references, injected only into this skill's runs |
+| `env` | `secret:<name>` references, injected only into this skill's runs. Uppercase names; never `ANTHROPIC_*`, `CLAUDE*`, `NODE_*`, `LD_*`, `*_PROXY`, `PATH`, `HOME` and similar |
 | `uses`, `mcpServers`, `network.allowedHosts` | Dependencies and egress |
 | `repo`, `changes` | Clone a repo per job. `none \| patch \| branch \| pr` says how the gateway (never Claude) delivers changes |
 | `rerunSafe`, `keepWorkspaceOnRetry` | Retry semantics |
 | `runWindows` | Allowed start times (IANA time zone, may cross midnight) |
 | `logContent` | Opt in to logging prompts and output (off by default) |
 
-`npm run skills:sync` validates every folder. An invalid skill is stored disabled with the reason, and a skill whose folder was removed is disabled. A retry runs the **current** skill version, and the input is re-checked against it.
+`npm run skills:sync` validates every gateway folder. An invalid skill is stored disabled with the reason, and a skill whose folder was removed is disabled. Uploads and git syncs use the same validation and are refused instead of stored disabled. App skills can't set `credentialProfile` (they always use the default credential), and they get Bash or `mcpServers` only when an admin turns on `skillsShellActive` for the app (D50). No skill may set `env` names that redirect Claude or load code. With `skillsManageActive` off, an app's own skills don't run, even jobs already queued.
+
+A retry runs the **current** skill version (or the pinned one), and the input is re-checked against it.
 
 ## 4. Job lifecycle
 
@@ -115,7 +134,7 @@ any non-terminal → cancelling → cancelled
    - `--model`, `--max-turns`, `--output-format stream-json --verbose`
    - `--tools`: an explicit allow-list (`Read`, edit tools for editing skills, `StructuredOutput`, granted families), plus `--disable-slash-commands`. The gateway injects `SKILL.md` as system instructions
    - `--permission-mode`: `dontAsk` for read-only skills, `acceptEdits` for skills that edit files (`edits` or `changes ≠ none`)
-   - `--setting-sources user`, `--settings <attempt file>`, `--add-dir <skill>`
+   - `--setting-sources user`, `--settings <attempt file>` (denies the attempt's own dirs, the skill dirs, the app's Claude home and `/proc`), `--add-dir <skill>`, `--strict-mcp-config` (MCP servers only from the manifest)
    - `--json-schema`
    - `--session-id` for a new conversation, or `--resume` for a crash-resume (with a "continue where you left off" prompt) or the next job in a session (with the skill's own prompt)
    - `AskUserQuestion` is always disallowed.
@@ -157,7 +176,7 @@ any non-terminal → cancelling → cancelled
 - **File tools stay inside the cwd and `--add-dir` directories.** The gateway never passes bare `Read`/`Write` allow rules.
 - **Repo config never loads:** a repository's `.claude/`, `.mcp.json` and hooks are excluded by `--setting-sources user`.
 - **Secrets:**
-  - They come only from the environment or the secrets file and are registered with the redactor.
+  - Gateway secrets come only from the environment or the secrets file. App secrets are stored encrypted per app (`app_secrets`, AES-256-GCM with `GW_ENCRYPTION_KEY`), and an app's own skills can reference only its own secrets. All of them are registered with the redactor.
   - Git push credentials stay in the gateway process (`GIT_ASKPASS`), never in the sandbox.
 - **Logging and tracing:** prompts, inputs and outputs are never logged, or sent to the optional LangFuse tracing, unless a skill opts in. Logs carry ids, states, tool names, durations and token counts.
 
@@ -169,7 +188,10 @@ Details and reporting: [SECURITY.md](../SECURITY.md).
 |---|---|
 | `apps` | Calling applications: allowed skills and models, feature flags, budget, run windows, intake pause, webhook and stream settings |
 | `api_keys` | Hashed, scoped, expirable, revocable keys per app |
-| `skills` | Registered skill versions, manifests, checksums, enabled state |
+| `skills` | One row per skill: owner app (`NULL` for built-in and shared), source, current version, enabled state |
+| `skill_versions` | Every version of a skill: manifest, content checksum, the packed folder |
+| `skill_sources`, `skill_syncs` | Git repositories an app syncs skills from, and each "sync now" with its result |
+| `app_secrets` | Encrypted secrets per app, referenced by the app's own skills |
 | `sessions` | Named or implicit Claude sessions with a lock and expiry |
 | `jobs` | One row per request: status, input, lease, result, delivery |
 | `job_attempts` | One row per run: runtime handle, stream offset, acted flags, usage, outcome |

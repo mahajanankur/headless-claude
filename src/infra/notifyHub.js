@@ -11,6 +11,20 @@ const getLogger = require('../utils/logger');
 
 const logger = getLogger(__filename);
 
+/**
+ * The LISTEN connection is idle by design, so a server-side idle_session_timeout must not kill it.
+ * Set after connecting, not as a startup option: Postgres < 14 and poolers (pgbouncer) refuse unknown
+ * startup parameters, which would make every connect fail. There the setting does not exist, so skip it.
+ */
+const disableIdleTimeout = async (client) => {
+    try {
+        // raw because: session setting on the dedicated LISTEN connection
+        await client.query('SET idle_session_timeout = 0');
+    } catch (error) {
+        logger.debug(`idle_session_timeout not set on the LISTEN connection: ${error.message}`);
+    }
+};
+
 const RECONNECT_DELAY_MS = 2000;
 
 /**
@@ -24,6 +38,7 @@ class NotifyHub extends EventEmitter {
         this.client = null;
         this.channels = new Set();
         this.closed = false;
+        this.reconnecting = false;
     }
 
     /**
@@ -34,6 +49,8 @@ class NotifyHub extends EventEmitter {
         const added = channels.filter((c) => !this.channels.has(c));
         added.forEach((c) => this.channels.add(c));
         this.closed = false;
+        // A pending reconnect will LISTEN on every channel in the set, including the new ones.
+        if (this.reconnecting) return;
         if (!this.client) {
             await this.connect();
             return;
@@ -47,13 +64,31 @@ class NotifyHub extends EventEmitter {
     connect = async () => {
         const client = new Client({ connectionString: config.get('postgres.url') });
         client.on('notification', ({ channel, payload }) => this.dispatch(channel, payload));
-        client.on('error', (error) => this.reconnect(error));
-        await client.connect();
-        for (const channel of this.channels) {
-            // raw because: LISTEN
-            await client.query(`LISTEN ${client.escapeIdentifier(channel)}`);
+        // pg can emit several errors for one dead connection; only the current client may trigger a reconnect.
+        client.on('error', (error) => this.handleLost(client, error));
+        try {
+            await client.connect();
+            await disableIdleTimeout(client);
+            for (const channel of this.channels) {
+                // raw because: LISTEN
+                await client.query(`LISTEN ${client.escapeIdentifier(channel)}`);
+            }
+        } catch (error) {
+            await client.end().catch(() => {});
+            throw error;
+        }
+        if (this.closed) {
+            await client.end().catch(() => {});
+            return;
         }
         this.client = client;
+    };
+
+    handleLost = (client, error) => {
+        if (client !== this.client) return;
+        this.client = null;
+        client.end().catch(() => {});
+        this.reconnect(error);
     };
 
     dispatch = (channel, payload) => {
@@ -65,11 +100,17 @@ class NotifyHub extends EventEmitter {
     };
 
     reconnect = (error) => {
-        if (this.closed) return;
+        if (this.closed || this.reconnecting) return;
         logger.warn(`LISTEN connection lost (${error.message}); reconnecting`);
-        this.client = null;
-        setTimeout(() => {
-            if (!this.closed) this.connect().catch((e) => this.reconnect(e));
+        this.reconnecting = true;
+        setTimeout(async () => {
+            try {
+                if (!this.closed) await this.connect();
+                this.reconnecting = false;
+            } catch (e) {
+                this.reconnecting = false;
+                this.reconnect(e);
+            }
         }, RECONNECT_DELAY_MS).unref();
     };
 

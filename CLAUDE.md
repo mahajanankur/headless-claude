@@ -41,11 +41,13 @@ src/services/                business rules; pure policies: schedulingPolicy, re
 src/repositories/            all queries; app-facing methods require appId; worker-only methods end in *Internal
 src/db/                      models/ · migrations/ · config.js (sequelize-cli)
 src/worker/                  worker.js (loops, recovery, reaper) · attemptSupervisor.js (one attempt) · argsBuilder.js
+                             skillCache.js (per-host read-only skill versions) · skillSyncer.js (git skill sources)
 src/worker/runners/          local · docker · host · wrapper/ccwrap.js (runs in the sandbox; imports nothing)
 src/worker/git/              repoManager (hidden git dir) · github (PRs)
 src/infra/                   notifyHub (LISTEN/NOTIFY) · advisoryLock · secrets · langfuse (optional tracing)
 src/constants/               frozen enums + the job state machine (jobStatus.js)
-skills/<name>/               manifest.json + .claude/skills/<name>/SKILL.md (repo-review, chat)
+skills/<name>/               built-in skills only (repo-review, chat); teams upload theirs (POST /skills, git sources)
+bin/headless-claude.js       the CLI (setup, start, migrate, app create, skills push/sync)
 test/fixtures/fake-claude/   fake `claude`, driven by input.scenario (no real usage)
 docs/                        api · architecture · decisions · deployment · configuration · claude-code-behavior · roadmap
 ```

@@ -33,9 +33,13 @@ const models = {
     ProviderState: require('./providerState.model')(sequelize, DataTypes),
     AppUsageDaily: require('./appUsageDaily.model')(sequelize, DataTypes),
     AuditLog: require('./auditLog.model')(sequelize, DataTypes),
+    SkillVersion: require('./skillVersion.model')(sequelize, DataTypes),
+    SkillSource: require('./skillSource.model')(sequelize, DataTypes),
+    SkillSync: require('./skillSync.model')(sequelize, DataTypes),
+    AppSecret: require('./appSecret.model')(sequelize, DataTypes),
 };
 
-const { App, ApiKey, Session, Job, JobAttempt, JobEvent, Artifact, WebhookDelivery } = models;
+const { App, ApiKey, Skill, SkillVersion, Session, Job, JobAttempt, JobEvent, Artifact, WebhookDelivery } = models;
 
 App.hasMany(ApiKey, { foreignKey: 'appId', as: 'apiKeys' });
 ApiKey.belongsTo(App, { foreignKey: 'appId', as: 'app' });
@@ -49,5 +53,7 @@ Job.hasMany(JobEvent, { foreignKey: 'jobId', as: 'events' });
 Job.hasMany(Artifact, { foreignKey: 'jobId', as: 'artifacts' });
 Artifact.belongsTo(Job, { foreignKey: 'jobId', as: 'job' });
 Job.hasMany(WebhookDelivery, { foreignKey: 'jobId', as: 'webhookDeliveries' });
+Skill.hasMany(SkillVersion, { foreignKey: 'skillId', as: 'versions' });
+SkillVersion.belongsTo(Skill, { foreignKey: 'skillId', as: 'skill' });
 
 module.exports = { sequelize, Sequelize, ...models };

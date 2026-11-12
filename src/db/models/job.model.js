@@ -11,6 +11,8 @@ module.exports = (sequelize, DataTypes) =>
             appId: { type: DataTypes.UUID, allowNull: false },
             apiKeyId: { type: DataTypes.UUID },
             skillName: { type: DataTypes.STRING(100), allowNull: false },
+            skillId: { type: DataTypes.UUID },
+            skillVersionId: { type: DataTypes.UUID },
             skillClass: {
                 type: DataTypes.STRING(10),
                 allowNull: false,

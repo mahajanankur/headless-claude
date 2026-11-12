@@ -1,0 +1,96 @@
+name: Release
+
+# Push a tag like v0.2.0 (equal to package.json "version") to publish:
+#   - ghcr.io/<owner>/headless-claude:<version> and :latest (API and worker image)
+#   - ghcr.io/<owner>/headless-claude-runner:<version> and :latest (job sandbox with the pinned Claude Code)
+#   - the npm package headless-claude (needs the NPM_TOKEN repository secret)
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cc_gateway
+          POSTGRES_PASSWORD: cc_gateway
+          POSTGRES_DB: cc_gateway_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cc_gateway"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://cc_gateway:cc_gateway@127.0.0.1:5432/cc_gateway_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Tag matches package.json version
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run db:migrate:test
+      - run: npm run test:all
+      - run: npm audit --omit=dev --audit-level=high
+
+  images:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image names
+        id: names
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "gateway=ghcr.io/${owner}/headless-claude" >> "$GITHUB_OUTPUT"
+          echo "runner=ghcr.io/${owner}/headless-claude-runner" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.names.outputs.gateway }}:${{ steps.names.outputs.version }},${{ steps.names.outputs.gateway }}:latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runner
+          push: true
+          tags: ${{ steps.names.outputs.runner }}:${{ steps.names.outputs.version }},${{ steps.names.outputs.runner }}:latest
+
+  npm:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

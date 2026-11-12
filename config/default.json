@@ -43,6 +43,15 @@
         "cancelGraceSec": 10,
         "maxPatchBytes": 5242880
     },
+    "skills": {
+        "maxPackageBytes": 5242880,
+        "maxUnpackedBytes": 20971520,
+        "maxFiles": 500,
+        "cacheTtlHours": 168,
+        "syncWaitMaxSec": 30,
+        "syncRetentionDays": 30,
+        "maxSecretValueChars": 8192
+    },
     "llm": {
         "allowedModels": ["haiku", "sonnet", "opus"],
         "defaultModel": "sonnet",
@@ -84,7 +93,8 @@
         "tailIntervalMs": 500,
         "eventBatchSize": 200,
         "healthIntervalSec": 300,
-        "webhookIntervalSec": 5
+        "webhookIntervalSec": 5,
+        "skillSyncPollMs": 5000
     },
     "usage": {
         "cacheReadWeight": 0.1,
@@ -106,7 +116,8 @@
     "paths": {
         "dataDir": "var",
         "skillsDir": "skills",
-        "secretsFile": ".secrets.local.json"
+        "secretsFile": ".secrets.local.json",
+        "sharedSkillsDir": ""
     },
     "logging": {
         "level": "info"

@@ -22,3 +22,10 @@ var/
 coverage/
 *.log
 .DS_Store
+
+# private skills (internal, never published)
+skills/security-scan/
+
+# local planning notes (never published)
+docs/plans/
+docs/superpowers/

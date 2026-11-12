@@ -65,6 +65,11 @@ describe('buildArgs', () => {
         expect(flag(args(manifest({ edits: true })), '--append-system-prompt')).toMatch(/under \.\/out\//);
     });
 
+    test('tells Claude where the skill folder (reference files) is', () => {
+        const system = flag(args(manifest()), '--append-system-prompt');
+        expect(system).toContain("This skill's files (references, templates) are in /skills/s/.claude/skills/s/.");
+    });
+
     test('editing skills use acceptEdits; resume uses --resume and the continue prompt', () => {
         expect(needsEdits(manifest({ changes: 'branch' }))).toBe(true);
         const a = args(manifest({ edits: true }), { mode: 'resume', resumeSessionId: 'old' });

@@ -2,8 +2,12 @@
 
 const express = require('express');
 
+const config = require('../../../config');
+
 const jobs = require('../controllers/jobs.controller');
 const skills = require('../controllers/skills.controller');
+const skillSources = require('../controllers/skillSources.controller');
+const secrets = require('../controllers/secrets.controller');
 const sessions = require('../controllers/sessions.controller');
 const admin = require('../controllers/admin.controller');
 const chat = require('../controllers/chat.controller');
@@ -39,6 +43,29 @@ router.get('/artifacts/:id', read, jobs.download);
 router.get('/skills', requireScope(SCOPES.SKILLS_READ), skills.list);
 router.get('/skills/:name', requireScope(SCOPES.SKILLS_READ), skills.get);
 
+// App-owned skills, git sources and secrets (flag skillsManageActive, off by default → 404)
+const manageOn = requireFeature(FEATURES.SKILLS_MANAGE);
+const skillsRead = [requireScope(SCOPES.SKILLS_READ), manageOn];
+const skillsWrite = [requireScope(SCOPES.SKILLS_WRITE), manageOn];
+const secretsWrite = [requireScope(SCOPES.SECRETS_WRITE), manageOn];
+// the package body is parsed only here, after auth, scope and flag checks
+const packageBody = express.raw({
+    type: ['application/gzip', 'application/x-gzip', 'application/octet-stream'],
+    limit: config.get('skills.maxPackageBytes'),
+});
+router.post('/skills', ...skillsWrite, packageBody, skills.upload);
+router.patch('/skills/:name', ...skillsWrite, skills.update);
+router.patch('/skills/:name/versions/:version', ...skillsWrite, skills.updateVersion);
+router.delete('/skills/:name', ...skillsWrite, skills.remove);
+router.post('/skill-sources', ...skillsWrite, skillSources.create);
+router.get('/skill-sources', ...skillsRead, skillSources.list);
+router.delete('/skill-sources/:id', ...skillsWrite, skillSources.remove);
+router.post('/skill-sources/:id/sync', ...skillsWrite, skillSources.sync);
+router.get('/skill-sources/:id/syncs/:syncId', ...skillsRead, skillSources.getSync);
+router.put('/secrets/:name', ...secretsWrite, secrets.put);
+router.get('/secrets', ...secretsWrite, secrets.list);
+router.delete('/secrets/:name', ...secretsWrite, secrets.remove);
+
 const chatOn = requireFeature(FEATURES.CHAT);
 router.post('/chat', write, chatOn, chat.send);
 router.get('/chat/:id', read, chatOn, chat.history);
@@ -63,6 +90,7 @@ adminRouter.post('/apps/:id/kill', admin.killApp);
 adminRouter.post('/intake/pause', admin.pauseIntake);
 adminRouter.post('/intake/resume', admin.resumeIntake);
 adminRouter.get('/stats', admin.stats);
+adminRouter.post('/skills/sync', admin.syncSkills);
 adminRouter.post('/jobs/:id/redeliver', admin.redeliver);
 router.use('/admin', adminRouter);
 

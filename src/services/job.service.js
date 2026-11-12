@@ -139,13 +139,6 @@ const resolveWebhook = async (app, webhookUrl) => {
     return webhookUrl;
 };
 
-const resolveSkillForApp = async (app, skillName) => {
-    if (!app.allowedSkills.includes(skillName)) {
-        throw new ForbiddenError(`This app may not use skill '${skillName}'.`, API_ERROR.FORBIDDEN_SKILL);
-    }
-    return skillService.resolveSkill(skillName);
-};
-
 const buildJobRow = async (body, context, skill, options = {}) => {
     const { app } = context;
     const { manifest } = skill;
@@ -161,11 +154,22 @@ const buildJobRow = async (body, context, skill, options = {}) => {
         appId: app.id,
         apiKeyId: context.keyId,
         skillName: skill.name,
+        skillId: skill.skillId,
+        skillVersionId: skill.versionId,
         skillClass: manifest.class,
         model,
         input: body.input,
         inputHash: sha256(
-            stableStringify({ skill: skill.name, input: body.input, model, sessionId, repoUrl, repoRef }),
+            stableStringify({
+                skill: skill.name,
+                input: body.input,
+                model,
+                sessionId,
+                repoUrl,
+                repoRef,
+                // only when pinned, so unpinned requests keep their earlier hash
+                ...(body.skillVersion ? { skillVersion: body.skillVersion } : {}),
+            }),
         ),
         priority: PRIORITY[body.priority || 'normal'],
         urgent: Boolean(body.urgent),
@@ -217,7 +221,7 @@ const insertJob = async (row) => {
 const submitJob = async (body, context, { idempotencyKey, sessionFeatureChecked = false } = {}) => {
     const { app } = context;
     await checkIntake(app);
-    const skill = await resolveSkillForApp(app, body.skill);
+    const skill = await skillService.resolveForJob(app, body.skill, body.skillVersion);
     const row = {
         ...(await buildJobRow(body, context, skill, { sessionFeatureChecked })),
         idempotencyKey: idempotencyKey || null,

@@ -19,6 +19,8 @@ const CHANNELS = Object.freeze({
     JOB_EVENTS: 'gw_job_events',
     JOB_QUEUED: 'gw_job_queued',
     JOB_CANCEL: 'gw_job_cancel',
+    SKILL_SYNC_QUEUED: 'gw_skill_sync_queued',
+    SKILL_SYNC_DONE: 'gw_skill_sync_done',
 });
 
 /** Tools that do not change anything; using only these never marks an attempt as having acted. */

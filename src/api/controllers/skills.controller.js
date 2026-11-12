@@ -25,4 +25,62 @@ const get = async (req, res, next) => {
     }
 };
 
-module.exports = { list, get };
+/** POST /skills (raw application/gzip body: the skill package) */
+const upload = async (req, res, next) => {
+    try {
+        const saved = await skillService.addVersion({
+            appId: req.context.appId,
+            buffer: Buffer.isBuffer(req.body) ? req.body : null,
+            keyId: req.context.keyId,
+        });
+        const created = saved.status === skillService.VERSION_STATUS.CREATED;
+        return res
+            .status(created ? 201 : 200)
+            .json(
+                new Response(
+                    true,
+                    created ? 'Skill version added.' : 'Skill version unchanged.',
+                    saved,
+                    req.context.requestId,
+                ),
+            );
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/** PATCH /skills/:name */
+const update = async (req, res, next) => {
+    try {
+        await validator.update(req);
+        const skill = await skillService.setSkillEnabled(req.context.appId, req.params.name, req.body.enabled);
+        return res.json(new Response(true, 'Skill updated.', skill, req.context.requestId));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/** PATCH /skills/:name/versions/:version */
+const updateVersion = async (req, res, next) => {
+    try {
+        await validator.updateVersion(req);
+        const { name, version } = req.params;
+        const skill = await skillService.setVersionEnabled(req.context.appId, name, version, req.body.enabled);
+        return res.json(new Response(true, 'Skill version updated.', skill, req.context.requestId));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/** DELETE /skills/:name */
+const remove = async (req, res, next) => {
+    try {
+        await validator.name(req);
+        await skillService.deleteSkill(req.context.appId, req.params.name);
+        return res.json(new Response(true, 'Skill deleted.', null, req.context.requestId));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+module.exports = { list, get, upload, update, updateVersion, remove };

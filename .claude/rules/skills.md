@@ -19,6 +19,17 @@ skills/<name>/
 - `version` is semver. Bump it on every behaviour change; attempts record the version they ran.
 - Run `npm run skills:sync` after any change. A skill that fails validation is stored disabled with the reason.
 
+## Where a skill lives
+- **In this repo** (`skills/`): only the built-in skills `chat` and `repo-review`. Don't add a team's skill here.
+- **Shared skills:** a folder outside the code, set with `GW_SHARED_SKILLS_DIR`.
+- **A team's own skill:** the team uploads it to its app (`headless-claude skills push <folder>` or a git source). The same rules apply to it, plus these:
+  - `credentialProfile` can't be set.
+  - `env` secrets are the app's own (`PUT /api/v1/secrets/<name>`).
+  - Bash and `mcpServers` need the admin-only `skillsShellActive` flag on the app (D50).
+  - No file path rules in `allowedTools` (`Read(//proc/**)`, `Write(~/…)`): workspace files need no rule.
+- **`env` names** are uppercase and never redirect Claude or load code (`ANTHROPIC_*`, `CLAUDE*`, `NODE_*`, `LD_*`, `*_PROXY`, `PATH`, `HOME`, …); the validator refuses them for every skill.
+- **Versions never change once stored:** an upload with the same version and different files is refused, so bump `version`.
+
 ## Permissions
 - **Never put bare file tools in `allowedTools`** (`Read`, `Write`, `Edit`, `Grep`, `Glob`, `LS`, `MultiEdit`, `NotebookEdit`).
   - A bare `Read` grants access to any file on the host, and the validator rejects it.

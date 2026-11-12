@@ -2,6 +2,8 @@
 
 const { body, param } = require('express-validator');
 
+const { SKILL_NAME_PATTERN } = require('../../constants/skill');
+
 /**
  * Reject body fields outside the allowed list (rules §13).
  * @param {string[]} allowed
@@ -24,7 +26,9 @@ const onlyFields = (allowed) =>
  */
 const uuidParam = (name, label) => param(name).isUUID().withMessage(`${label} (${name}) must be a UUID.`);
 
-const SKILL_NAME = /^[a-z0-9][a-z0-9-]{1,62}$/;
+const SKILL_NAME = SKILL_NAME_PATTERN;
 const NAME = /^[A-Za-z0-9._ -]{1,100}$/;
+/** A skill version as manifest.version requires it: major.minor.patch. */
+const SKILL_VERSION = /^\d{1,9}\.\d{1,9}\.\d{1,9}$/;
 
-module.exports = { onlyFields, uuidParam, SKILL_NAME, NAME };
+module.exports = { onlyFields, uuidParam, SKILL_NAME, SKILL_VERSION, NAME };

@@ -3,6 +3,7 @@
 const appService = require('../../services/app.service');
 const adminService = require('../../services/admin.service');
 const deliveryService = require('../../services/delivery.service');
+const skillService = require('../../services/skill.service');
 const validator = require('../validators/admin.validator');
 const { Response } = require('../dtos/response.dto');
 
@@ -19,6 +20,9 @@ const handle =
     };
 
 module.exports = {
+    syncSkills: handle(null, async () => ({ items: await skillService.resyncGatewaySkills() }), {
+        message: 'Gateway skills synced.',
+    }),
     listApps: handle(null, async () => ({ items: await appService.listApps() }), { message: 'Apps.' }),
     createApp: handle(
         validator.createApp,

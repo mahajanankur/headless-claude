@@ -15,7 +15,11 @@ const PROCESSES = [
 ];
 
 const children = PROCESSES.map(({ name, script }) => {
-    const child = spawn(process.execPath, [path.join(ROOT, script)], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(ROOT, script)], {
+        cwd: ROOT,
+        env: { ...process.env, GW_HOME: process.env.GW_HOME || process.cwd() },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
     const prefix = (stream, out) =>
         stream.on('data', (chunk) =>
             String(chunk)

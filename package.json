@@ -1,7 +1,6 @@
 {
     "name": "headless-claude",
-    "version": "0.1.0",
-    "private": true,
+    "version": "0.2.0",
     "description": "Run reusable Claude Code skills as managed, sandboxed background jobs for your backend services.",
     "license": "MIT",
     "repository": {
@@ -20,6 +19,26 @@
         "job-queue",
         "postgres",
         "sandbox"
+    ],
+    "bin": {
+        "headless-claude": "bin/headless-claude.js"
+    },
+    "files": [
+        "bin/",
+        "src/",
+        "config/",
+        "scripts/",
+        "skills/chat/",
+        "skills/repo-review/",
+        "ops/",
+        ".sequelizerc",
+        ".env.example",
+        ".env.production.example",
+        "compose.yaml",
+        "compose.prod.yaml",
+        "Dockerfile",
+        "Dockerfile.runner",
+        "SECURITY.md"
     ],
     "engines": {
         "node": ">=20"
@@ -60,7 +79,8 @@
         "pg": "^8.23.1",
         "sequelize": "^6.37.8",
         "sequelize-cli": "^6.6.5",
-        "socket.io": "^4.8.4"
+        "socket.io": "^4.8.4",
+        "tar": "^7.5.22"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",

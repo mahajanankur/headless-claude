@@ -66,7 +66,8 @@
     "paths": {
         "dataDir": "GW_DATA_DIR",
         "skillsDir": "GW_SKILLS_DIR",
-        "secretsFile": "GW_SECRETS_FILE"
+        "secretsFile": "GW_SECRETS_FILE",
+        "sharedSkillsDir": "GW_SHARED_SKILLS_DIR"
     },
     "logging": {
         "level": "LOG_LEVEL"

@@ -5,7 +5,7 @@ const config = require('../../config');
 const { validateSchema } = require('../utils/jsonSchema');
 const { ValidationError, ForbiddenError } = require('../utils/AppError');
 const { modelFamily } = require('../constants/provider');
-const { CHANGE_MODE } = require('../constants/skill');
+const { CHANGE_MODE, GIT_REF_PATTERN } = require('../constants/skill');
 const { API_ERROR } = require('../constants/apiErrors');
 
 const MAX_INPUT_BYTES = config.get('job.maxInputBytes');
@@ -92,8 +92,7 @@ const resolveRepo = (input, manifest) => {
     }
     checkRepoUrl(repoUrl);
     const ref = (manifest.repo.refFromInput && input[manifest.repo.refFromInput]) || manifest.repo.defaultRef || null;
-    if (ref !== null && !/^[A-Za-z0-9._/-]{1,200}$/.test(ref))
-        throw new ValidationError('Repository ref (ref) is not valid.');
+    if (ref !== null && !GIT_REF_PATTERN.test(ref)) throw new ValidationError('Repository ref (ref) is not valid.');
     return { repoUrl, repoRef: ref };
 };
 
@@ -104,4 +103,12 @@ const resolveRepo = (input, manifest) => {
  */
 const allowsSessions = (manifest) => manifest.changes === CHANGE_MODE.NONE;
 
-module.exports = { resolveModel, validateInput, resolveTimeout, resolveRepo, allowsSessions, isModelAllowed };
+module.exports = {
+    resolveModel,
+    validateInput,
+    resolveTimeout,
+    resolveRepo,
+    checkRepoUrl,
+    allowsSessions,
+    isModelAllowed,
+};

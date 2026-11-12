@@ -6,6 +6,8 @@ The gateway is two processes from one image, plus PostgreSQL:
 
 **Deploy order:** migrate → API → worker.
 
+**Upgrading to v0.2 (external skills):** stop the worker before running the migrations. The migration replaces the unique index on skill names, and a v0.1 worker that restarts in between fails its start-up skill sync ("no unique or exclusion constraint matching the ON CONFLICT specification"). The error is logged and the worker keeps its registered skills, but stopping it avoids the noise. Order for this upgrade: stop worker → migrate → API → worker.
+
 **Restarting the worker is safe:** running jobs continue and are re-attached.
 
 ## 1. Choose a runner
@@ -45,8 +47,10 @@ Set these as environment variables (`.env.production`, see `.env.production.exam
 
 ## 3. Docker Compose (single host, docker runner)
 
+`compose.prod.yaml` runs the published images `ghcr.io/mahajanankur/headless-claude` and `headless-claude-runner` (`GW_VERSION`, default `latest`). To build from a checkout instead, run `docker compose -f compose.prod.yaml build` and `docker build -f Dockerfile.runner -t ghcr.io/mahajanankur/headless-claude-runner:latest .`.
+
 ```bash
-docker build -f Dockerfile.runner --build-arg CLAUDE_CODE_VERSION=2.1.312 -t headless-claude-runner .
+docker compose -f compose.prod.yaml pull                                    # or build, see above
 cp .env.production.example .env.production && chmod 600 .env.production   # fill it in
 sudo mkdir -p /var/gw && sudo chown 1000:1000 /var/gw
 sudo ops/host/block-metadata.sh                                             # block 169.254.169.254 for containers
@@ -89,11 +93,23 @@ It refuses everything else.
 ## 5. Skills and apps
 
 ```bash
-npm run skills:sync                                     # validate and register ./skills (exits 1 if any skill is invalid)
-node scripts/create-app.js --name search-api --skills repo-review --models haiku,sonnet --features waitModeActive,webhooksActive
+npm run skills:sync                                     # validate and register the built-in (and shared) skills
+node scripts/create-app.js --name search-api --skills repo-review --models haiku,sonnet --features waitModeActive,webhooksActive,skillsManageActive
 ```
 
-The worker also syncs skills at startup.
+**Where skills come from:**
+- **Built-in skills** ship in the package and image. The worker registers them at start.
+- **Shared skills:** mount a folder of skill folders and set `GW_SHARED_SKILLS_DIR`. Re-read it with `POST /api/v1/admin/skills/sync`, or restart the worker.
+- **A team's own skills** need no gateway change.
+  1. Turn on `skillsManageActive` for the team's app.
+  2. The team uploads with `headless-claude skills push <folder>` (or `POST /api/v1/skills`), or registers a git repository (`POST /api/v1/skill-sources`) and calls "sync now" from its CI.
+  3. Skills that need credentials read the app's own secrets (`PUT /api/v1/secrets/<name>`).
+  4. A team skill that needs Bash or MCP servers also needs `skillsShellActive`. Turn it on only for teams you trust with the Claude credential: code in the sandbox can read it (D50).
+
+  See [api.md](api.md#managing-your-own-skills-skillsmanageactive).
+
+> [!WARNING]
+> **Network access:** job sandboxes can reach whatever the worker host can reach, including private addresses and other services on the same machine. A team's skill with Bash (`skillsShellActive`) can use that. Until private-address blocking ships ([roadmap](roadmap.md)), run the gateway on a host whose network neighbours you trust, or give app skills only to teams you trust.
 
 **App settings:** an admin app manages the other apps through `/api/v1/admin/apps` ([api.md](api.md#admin-admin-apps)).
 

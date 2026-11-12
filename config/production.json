@@ -5,7 +5,6 @@
     },
     "paths": {
         "dataDir": "/var/gw",
-        "skillsDir": "/opt/gateway/skills",
         "secretsFile": "/etc/gateway/secrets.json"
     },
     "scheduler": {

@@ -80,6 +80,24 @@ const scenarios = {
         emit({ type: 'result', subtype: 'success', is_error: true, num_turns: 1, terminal_reason: 'api_error', api_error_status: 401, result: 'Failed to authenticate. API Error: 401 Invalid bearer token', usage: usage(0) });
         process.exit(1);
     },
+    // records what the run received: the env vars named in input.envNames and the reference files
+    // of every --add-dir skill folder (proves app secrets and uploaded skill files reach the run)
+    probe: async () => {
+        const dirs = argv.flatMap((a, i) => (a === '--add-dir' ? [argv[i + 1]] : []));
+        const refs = {};
+        dirs.forEach((dir) => {
+            const skillsDir = `${dir}/.claude/skills`;
+            if (!fs.existsSync(skillsDir)) return;
+            fs.readdirSync(skillsDir).forEach((name) => {
+                const ref = `${skillsDir}/${name}/references/note.md`;
+                if (fs.existsSync(ref)) refs[name] = fs.readFileSync(ref, 'utf8');
+            });
+        });
+        const env = Object.fromEntries((input.envNames || []).map((n) => [n, process.env[n] || null]));
+        fs.mkdirSync('out', { recursive: true });
+        fs.writeFileSync('out/probe.json', JSON.stringify({ env, refs }));
+        result(structured());
+    },
     no_output: async () => result({}),
     hang: async () => {
         assistant([{ type: 'text', text: 'Thinking for a long time.' }]);
